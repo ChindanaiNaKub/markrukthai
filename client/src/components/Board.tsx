@@ -240,7 +240,7 @@ export default function Board({
   return (
     <div
       ref={boardRef}
-      className="relative aspect-square w-full max-w-[min(80vh,600px)] select-none rounded shadow-lg overflow-hidden"
+      className="relative aspect-square w-full max-w-[min(80vh,600px)] select-none rounded shadow-lg overflow-hidden board-no-select"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}

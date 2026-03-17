@@ -76,14 +76,25 @@ body {
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
-  transition: transform 0.05s ease;
+  transition: transform 0.1s ease;
 }
 .piece:active {
   cursor: grabbing;
 }
 .piece-dragging {
   z-index: 100;
-  transform: scale(1.1);
+  transform: scale(1.15);
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+}
+
+/* Move animation */
+@keyframes pieceLand {
+  0% { transform: scale(1.1); }
+  50% { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+.piece-landed {
+  animation: pieceLand 0.15s ease-out;
 }
 
 /* Animations */
@@ -103,6 +114,14 @@ body {
   animation: slideUp 0.3s ease-out;
 }
 
+/* Prevent text selection on board */
+.board-no-select {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -113,4 +132,16 @@ body {
 ::-webkit-scrollbar-thumb {
   background: var(--color-surface-hover);
   border-radius: 3px;
+}
+
+/* Mobile-specific adjustments */
+@media (max-width: 640px) {
+  .board-square-light, .board-square-dark {
+    font-size: 8px;
+  }
+}
+@media (max-height: 700px) {
+  .max-h-\[300px\] {
+    max-height: 150px;
+  }
 }
