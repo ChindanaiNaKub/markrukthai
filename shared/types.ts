@@ -1,0 +1,102 @@
+export type PieceColor = 'white' | 'black';
+
+export type PieceType = 'K' | 'M' | 'S' | 'R' | 'N' | 'P' | 'PM';
+// K = Khun (King), M = Met (Queen), S = Khon (Bishop/Silver)
+// R = Rua (Rook), N = Ma (Knight), P = Bia (Pawn), PM = Bia Ngai (Promoted Pawn = Met)
+
+export interface Piece {
+  type: PieceType;
+  color: PieceColor;
+}
+
+export interface Position {
+  row: number; // 0-7, where 0 = rank 1 (white's back rank)
+  col: number; // 0-7, where 0 = a-file
+}
+
+export interface Move {
+  from: Position;
+  to: Position;
+  captured?: Piece | null;
+  promoted?: boolean;
+}
+
+export type Board = (Piece | null)[][];
+
+export interface GameState {
+  board: Board;
+  turn: PieceColor;
+  moveHistory: Move[];
+  isCheck: boolean;
+  isCheckmate: boolean;
+  isStalemate: boolean;
+  isDraw: boolean;
+  gameOver: boolean;
+  winner: PieceColor | null;
+  whiteTime: number; // milliseconds remaining
+  blackTime: number;
+  lastMoveTime: number;
+  moveCount: number;
+}
+
+export type TimeControl = {
+  initial: number;  // seconds
+  increment: number; // seconds per move
+};
+
+export interface GameRoom {
+  id: string;
+  white: string | null;  // socket id
+  black: string | null;
+  spectators: string[];
+  gameState: GameState;
+  timeControl: TimeControl;
+  status: 'waiting' | 'playing' | 'finished';
+  createdAt: number;
+  drawOffer: PieceColor | null;
+}
+
+export interface ClientGameState {
+  board: Board;
+  turn: PieceColor;
+  moveHistory: Move[];
+  isCheck: boolean;
+  isCheckmate: boolean;
+  isStalemate: boolean;
+  isDraw: boolean;
+  gameOver: boolean;
+  winner: PieceColor | null;
+  whiteTime: number;
+  blackTime: number;
+  moveCount: number;
+  status: 'waiting' | 'playing' | 'finished';
+  playerColor: PieceColor | null;
+  drawOffer: PieceColor | null;
+  gameId: string;
+}
+
+// Socket.IO Event types
+export interface ServerToClientEvents {
+  game_created: (data: { gameId: string }) => void;
+  game_joined: (data: { color: PieceColor; gameState: ClientGameState }) => void;
+  game_state: (data: ClientGameState) => void;
+  move_made: (data: { move: Move; gameState: ClientGameState }) => void;
+  game_over: (data: { reason: string; winner: PieceColor | null; gameState: ClientGameState }) => void;
+  clock_update: (data: { whiteTime: number; blackTime: number }) => void;
+  draw_offered: (data: { by: PieceColor }) => void;
+  draw_declined: () => void;
+  rematch_offered: (data: { by: PieceColor }) => void;
+  opponent_disconnected: () => void;
+  opponent_reconnected: () => void;
+  error: (data: { message: string }) => void;
+}
+
+export interface ClientToServerEvents {
+  create_game: (data: { timeControl: TimeControl }) => void;
+  join_game: (data: { gameId: string }) => void;
+  make_move: (data: { from: Position; to: Position }) => void;
+  resign: () => void;
+  offer_draw: () => void;
+  respond_draw: (data: { accept: boolean }) => void;
+  request_rematch: () => void;
+}
