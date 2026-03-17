@@ -1,0 +1,116 @@
+@import "tailwindcss";
+
+@theme {
+  --color-board-light: #e8c690;
+  --color-board-dark: #b58863;
+  --color-board-selected: #829769;
+  --color-board-legal: #646f40;
+  --color-board-lastmove: #cdd26a;
+  --color-board-check: #e84040;
+  --color-surface: #161512;
+  --color-surface-alt: #1e1d1a;
+  --color-surface-hover: #2b2926;
+  --color-primary: #629924;
+  --color-primary-light: #7db832;
+  --color-accent: #bf811d;
+  --color-text: #bababa;
+  --color-text-bright: #e0e0e0;
+  --color-text-dim: #888888;
+  --color-danger: #cc3333;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  min-height: 100vh;
+}
+
+/* Board square colors */
+.board-square-light {
+  background-color: var(--color-board-light);
+}
+.board-square-dark {
+  background-color: var(--color-board-dark);
+}
+.board-square-selected {
+  background-color: var(--color-board-selected) !important;
+}
+.board-square-lastmove-light {
+  background-color: #cdd26a !important;
+}
+.board-square-lastmove-dark {
+  background-color: #aaa23a !important;
+}
+.board-square-check {
+  background: radial-gradient(ellipse at center, rgba(255, 0, 0, 0.6) 0%, rgba(200, 0, 0, 0.3) 50%, transparent 80%) !important;
+}
+
+/* Legal move indicators */
+.legal-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+.legal-capture {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  border: 5px solid rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+/* Piece styling */
+.piece {
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.05s ease;
+}
+.piece:active {
+  cursor: grabbing;
+}
+.piece-dragging {
+  z-index: 100;
+  transform: scale(1.1);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slideUp {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-hover);
+  border-radius: 3px;
+}
