@@ -1,0 +1,201 @@
+import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import type { Position, PieceColor, Move, GameState } from '@shared/types';
+import { getLegalMoves, makeMove, createInitialGameState, createInitialBoard } from '@shared/engine';
+import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound } from '../lib/sounds';
+import Board from './Board';
+import MoveHistory from './MoveHistory';
+import GameOverModal from './GameOverModal';
+import PieceSVG from './PieceSVG';
+
+export default function LocalGame() {
+  const navigate = useNavigate();
+  const [gameState, setGameState] = useState<GameState>(() => createInitialGameState(0, 0));
+  const [selectedSquare, setSelectedSquare] = useState<Position | null>(null);
+  const [legalMoves, setLegalMoves] = useState<Position[]>([]);
+  const [viewAs, setViewAs] = useState<PieceColor>('white');
+  const [gameOverInfo, setGameOverInfo] = useState<{ reason: string; winner: PieceColor | null } | null>(null);
+
+  const handleSquareClick = useCallback((pos: Position) => {
+    if (gameState.gameOver) return;
+
+    const piece = gameState.board[pos.row][pos.col];
+
+    if (selectedSquare) {
+      const isLegal = legalMoves.some(m => m.row === pos.row && m.col === pos.col);
+      if (isLegal) {
+        const newState = makeMove(gameState, selectedSquare, pos);
+        if (newState) {
+          setGameState(newState);
+          setSelectedSquare(null);
+          setLegalMoves([]);
+
+          const lastMove = newState.moveHistory[newState.moveHistory.length - 1];
+          if (newState.isCheck) playCheckSound();
+          else if (lastMove.captured) playCaptureSound();
+          else playMoveSound();
+
+          if (newState.gameOver) {
+            const reason = newState.isCheckmate ? 'checkmate' : newState.isStalemate ? 'stalemate' : 'draw';
+            setGameOverInfo({ reason, winner: newState.winner });
+            playGameOverSound();
+          }
+        }
+        return;
+      }
+    }
+
+    if (piece && piece.color === gameState.turn) {
+      setSelectedSquare(pos);
+      setLegalMoves(getLegalMoves(gameState.board, pos));
+    } else {
+      setSelectedSquare(null);
+      setLegalMoves([]);
+    }
+  }, [gameState, selectedSquare, legalMoves]);
+
+  const handlePieceDrop = useCallback((from: Position, to: Position) => {
+    if (gameState.gameOver) return;
+    const piece = gameState.board[from.row][from.col];
+    if (!piece || piece.color !== gameState.turn) return;
+
+    const legal = getLegalMoves(gameState.board, from);
+    if (legal.some(m => m.row === to.row && m.col === to.col)) {
+      const newState = makeMove(gameState, from, to);
+      if (newState) {
+        setGameState(newState);
+        setSelectedSquare(null);
+        setLegalMoves([]);
+
+        const lastMove = newState.moveHistory[newState.moveHistory.length - 1];
+        if (newState.isCheck) playCheckSound();
+        else if (lastMove.captured) playCaptureSound();
+        else playMoveSound();
+
+        if (newState.gameOver) {
+          const reason = newState.isCheckmate ? 'checkmate' : newState.isStalemate ? 'stalemate' : 'draw';
+          setGameOverInfo({ reason, winner: newState.winner });
+          playGameOverSound();
+        }
+      }
+    }
+  }, [gameState]);
+
+  const handleReset = () => {
+    setGameState(createInitialGameState(0, 0));
+    setSelectedSquare(null);
+    setLegalMoves([]);
+    setGameOverInfo(null);
+  };
+
+  const getLastMove = (): Move | null => {
+    if (gameState.moveHistory.length === 0) return null;
+    return gameState.moveHistory[gameState.moveHistory.length - 1];
+  };
+
+  const getCheckSquare = (): Position | null => {
+    if (!gameState.isCheck) return null;
+    for (let row = 0; row < 8; row++) {
+      for (let col = 0; col < 8; col++) {
+        const piece = gameState.board[row][col];
+        if (piece && piece.type === 'K' && piece.color === gameState.turn) {
+          return { row, col };
+        }
+      }
+    }
+    return null;
+  };
+
+  return (
+    <div className="min-h-screen bg-surface flex flex-col">
+      <header className="bg-surface-alt border-b border-surface-hover">
+        <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
+          <button onClick={() => navigate('/')} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+            <PieceSVG type="K" color="white" size={32} />
+            <h1 className="text-lg font-bold text-text-bright tracking-tight">Makruk</h1>
+          </button>
+          <span className="text-sm text-text-dim">Local Game</span>
+        </div>
+      </header>
+
+      <main className="flex-1 flex items-start justify-center px-4 py-4">
+        <div className="flex flex-col lg:flex-row gap-4 w-full max-w-6xl">
+          <div className="flex flex-col items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-text-dim">View as:</span>
+              <button
+                onClick={() => setViewAs('white')}
+                className={`px-3 py-1 rounded ${viewAs === 'white' ? 'bg-primary text-white' : 'bg-surface-hover text-text'}`}
+              >
+                White
+              </button>
+              <button
+                onClick={() => setViewAs('black')}
+                className={`px-3 py-1 rounded ${viewAs === 'black' ? 'bg-primary text-white' : 'bg-surface-hover text-text'}`}
+              >
+                Black
+              </button>
+            </div>
+
+            <Board
+              board={gameState.board}
+              playerColor={viewAs}
+              isMyTurn={true}
+              legalMoves={legalMoves}
+              selectedSquare={selectedSquare}
+              lastMove={getLastMove()}
+              isCheck={gameState.isCheck}
+              checkSquare={getCheckSquare()}
+              onSquareClick={handleSquareClick}
+              onPieceDrop={handlePieceDrop}
+              disabled={gameState.gameOver}
+            />
+
+            <div className={`
+              rounded-lg px-4 py-2 text-center font-semibold text-sm w-full max-w-[200px]
+              ${gameState.gameOver
+                ? 'bg-accent/20 text-accent border border-accent/30'
+                : gameState.turn === 'white'
+                  ? 'bg-white/10 text-text-bright border border-white/20'
+                  : 'bg-gray-800/50 text-text-bright border border-gray-600/30'
+              }
+            `}>
+              {gameState.gameOver
+                ? gameState.winner ? `${gameState.winner} wins!` : 'Draw'
+                : `${gameState.turn}'s turn`
+              }
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 lg:w-64 w-full">
+            <MoveHistory moves={gameState.moveHistory} initialBoard={createInitialBoard()} />
+
+            <button
+              onClick={handleReset}
+              className="w-full py-2 px-4 bg-surface-alt hover:bg-surface-hover text-text-bright text-sm rounded-lg border border-surface-hover transition-colors"
+            >
+              ↺ New Game
+            </button>
+
+            <button
+              onClick={() => navigate('/')}
+              className="w-full py-2 px-4 bg-primary hover:bg-primary-light text-white text-sm rounded-lg transition-colors"
+            >
+              Play Online
+            </button>
+          </div>
+        </div>
+      </main>
+
+      {gameOverInfo && (
+        <GameOverModal
+          winner={gameOverInfo.winner}
+          reason={gameOverInfo.reason}
+          playerColor={viewAs}
+          onRematch={handleReset}
+          onNewGame={() => navigate('/')}
+        />
+      )}
+    </div>
+  );
+}

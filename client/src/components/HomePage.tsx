@@ -125,6 +125,19 @@ export default function HomePage() {
           >
             {isCreating ? 'Creating...' : 'Play with a Friend'}
           </button>
+
+          <div className="mt-3 flex items-center gap-3">
+            <div className="flex-1 h-px bg-surface-hover" />
+            <span className="text-text-dim text-xs">or</span>
+            <div className="flex-1 h-px bg-surface-hover" />
+          </div>
+
+          <button
+            onClick={() => navigate('/local')}
+            className="w-full mt-3 py-2 px-6 bg-surface hover:bg-surface-hover text-text border border-surface-hover font-medium rounded-lg transition-colors"
+          >
+            Play Locally (Same Screen)
+          </button>
         </div>
 
         {/* Join Game */}

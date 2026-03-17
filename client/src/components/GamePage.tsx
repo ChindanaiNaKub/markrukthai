@@ -8,6 +8,7 @@ import Board from './Board';
 import Clock from './Clock';
 import MoveHistory from './MoveHistory';
 import GameOverModal from './GameOverModal';
+import PieceGuide from './PieceGuide';
 import PieceSVG from './PieceSVG';
 
 export default function GamePage() {
@@ -23,6 +24,7 @@ export default function GamePage() {
   const [opponentDisconnected, setOpponentDisconnected] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
   const joinedRef = useRef(false);
 
   useEffect(() => {
@@ -437,6 +439,14 @@ export default function GamePage() {
                 </button>
               </div>
             )}
+
+            {/* Piece Guide Button */}
+            <button
+              onClick={() => setShowGuide(true)}
+              className="w-full py-2 px-3 bg-surface-alt hover:bg-surface-hover text-text-dim hover:text-text-bright text-sm rounded-lg border border-surface-hover transition-colors"
+            >
+              📖 Piece Guide
+            </button>
           </div>
         </div>
       </main>
@@ -451,6 +461,9 @@ export default function GamePage() {
           onNewGame={handleNewGame}
         />
       )}
+
+      {/* Piece Guide Modal */}
+      <PieceGuide show={showGuide} onClose={() => setShowGuide(false)} />
     </div>
   );
 }
