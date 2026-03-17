@@ -1,6 +1,7 @@
 # Fly.io configuration for Makruk Thai Chess
+# WARNING: Fly.io no longer has a free tier (as of 2024).
+# This will cost ~$3-5/month. Use Render.com for free hosting instead.
 # Deploy: fly launch --no-deploy && fly deploy
-# Or: fly deploy (after initial setup)
 
 app = 'makruk-thai'
 primary_region = 'sin' # Singapore - close to Thailand
