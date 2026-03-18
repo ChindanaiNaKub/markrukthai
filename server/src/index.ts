@@ -6,7 +6,7 @@ import path from 'path';
 import rateLimit from 'express-rate-limit';
 import { GameManager } from './gameManager';
 import { MatchmakingQueue } from './matchmaking';
-import { initDatabase, saveCompletedGame, getRecentGames, getGame as getDbGame, getStats, getGameCount, saveFeedback } from './database';
+import { initDatabase, saveCompletedGame, getRecentGames, getGame as getDbGame, getStats, getGameCount, saveFeedback, getFeedback, getFeedbackCount } from './database';
 import { ServerToClientEvents, ClientToServerEvents, GameRoom } from '../../shared/types';
 
 const app = express();
@@ -395,6 +395,15 @@ const feedbackLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
   max: 5,
   message: { error: 'Too many feedback submissions. Please try again later.' },
+});
+
+app.get('/api/feedback', (_req, res) => {
+  const page = parseInt(_req.query.page as string) || 0;
+  const limit = Math.min(parseInt(_req.query.limit as string) || 20, 50);
+  const type = (_req.query.type as string) || undefined;
+  const feedback = getFeedback(limit, page * limit, type);
+  const total = getFeedbackCount(type);
+  res.json({ feedback, total, page, limit });
 });
 
 app.post('/api/feedback', feedbackLimiter, (req, res) => {

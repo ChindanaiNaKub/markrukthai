@@ -280,6 +280,15 @@ const EN: Record<string, string> = {
   'feedback.thanks_desc': 'Your feedback helps improve Makruk Online.',
   'feedback.error': 'Failed to send. Please try again.',
 
+  // Feedback Messages Page
+  'feedback_page.title': 'Feedback Messages',
+  'feedback_page.count': '{count} message(s)',
+  'feedback_page.filter_all': 'All',
+  'feedback_page.empty': 'No feedback yet',
+  'feedback_page.empty_desc': 'Feedback submitted by users will appear here.',
+  'feedback_page.detail_page': 'Page',
+  'feedback_page.detail_date': 'Date',
+
   // Time ago
   'time.just_now': 'just now',
   'time.min_ago': '{n}m ago',
@@ -549,6 +558,15 @@ const TH: Record<string, string> = {
   'feedback.thanks': 'ขอบคุณ!',
   'feedback.thanks_desc': 'ความคิดเห็นของคุณช่วยพัฒนาหมากรุกออนไลน์',
   'feedback.error': 'ส่งไม่สำเร็จ กรุณาลองใหม่',
+
+  // Feedback Messages Page
+  'feedback_page.title': 'ข้อความแจ้งปัญหา',
+  'feedback_page.count': '{count} ข้อความ',
+  'feedback_page.filter_all': 'ทั้งหมด',
+  'feedback_page.empty': 'ยังไม่มีข้อความ',
+  'feedback_page.empty_desc': 'ข้อความจากผู้ใช้จะแสดงที่นี่',
+  'feedback_page.detail_page': 'หน้า',
+  'feedback_page.detail_date': 'วันที่',
 
   // Time ago
   'time.just_now': 'เมื่อสักครู่',

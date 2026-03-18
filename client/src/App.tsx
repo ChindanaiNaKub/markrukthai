@@ -7,6 +7,7 @@ import { PuzzleListPage, PuzzlePlayer } from './components/PuzzlePage';
 import QuickPlay from './components/QuickPlay';
 import AboutPage from './components/AboutPage';
 import GamesPage from './components/GamesPage';
+import FeedbackMessagesPage from './components/FeedbackMessagesPage';
 import FeedbackWidget from './components/FeedbackWidget';
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/quick-play" element={<QuickPlay />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/games" element={<GamesPage />} />
+        <Route path="/feedback" element={<FeedbackMessagesPage />} />
       </Routes>
       <FeedbackWidget />
     </div>

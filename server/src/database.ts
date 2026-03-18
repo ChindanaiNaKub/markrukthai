@@ -165,3 +165,51 @@ export function saveFeedback(data: {
     console.error('Failed to save feedback:', err);
   }
 }
+
+export interface SavedFeedback {
+  id: number;
+  type: string;
+  message: string;
+  page: string;
+  user_agent: string;
+  ip: string;
+  created_at: number;
+}
+
+export function getFeedback(limit: number = 20, offset: number = 0, type?: string): SavedFeedback[] {
+  try {
+    if (type && type !== 'all') {
+      const stmt = db.prepare(`
+        SELECT id, type, message, page, user_agent, created_at FROM feedback
+        WHERE type = ?
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+      `);
+      return stmt.all(type, limit, offset) as SavedFeedback[];
+    }
+    const stmt = db.prepare(`
+      SELECT id, type, message, page, user_agent, created_at FROM feedback
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    `);
+    return stmt.all(limit, offset) as SavedFeedback[];
+  } catch (err) {
+    console.error('Failed to get feedback:', err);
+    return [];
+  }
+}
+
+export function getFeedbackCount(type?: string): number {
+  try {
+    if (type && type !== 'all') {
+      const stmt = db.prepare('SELECT COUNT(*) as count FROM feedback WHERE type = ?');
+      const row = stmt.get(type) as { count: number };
+      return row.count;
+    }
+    const stmt = db.prepare('SELECT COUNT(*) as count FROM feedback');
+    const row = stmt.get() as { count: number };
+    return row.count;
+  } catch (err) {
+    return 0;
+  }
+}
