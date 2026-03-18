@@ -54,6 +54,9 @@ export default function QuickPlay() {
       socket.off('matchmaking_started', handleMatchmakingStarted);
       socket.off('matchmaking_cancelled', handleMatchmakingCancelled);
       socket.off('queue_status', handleQueueStatus);
+      if (socket.connected) {
+        socket.emit('cancel_matchmaking');
+      }
     };
   }, [navigate]);
 
