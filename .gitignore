@@ -4,8 +4,8 @@ DEPLOY.md
 # Dependencies
 node_modules/
 
-# Build output
-dist/
+# Build output — do not ignore client/server dist: Render’s slug omits gitignored paths,
+# so production builds must be includable. (Run `git clean -fd client/dist server/dist` if needed.)
 build/
 *.tsbuildinfo
 

@@ -45,8 +45,8 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Serve static files in production
-const clientDist = path.join(__dirname, '../../client/dist');
+// Serve static files in production (__dirname = server/dist/server/src when compiled)
+const clientDist = path.join(__dirname, '../../../../client/dist');
 app.use(express.static(clientDist));
 
 // Initialize database
