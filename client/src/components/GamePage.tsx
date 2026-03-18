@@ -4,6 +4,7 @@ import type { Position, PieceColor, ClientGameState, Move } from '@shared/types'
 import { getLegalMoves, createInitialBoard } from '@shared/engine';
 import { socket, connectSocket } from '../lib/socket';
 import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound, playGameStartSound } from '../lib/sounds';
+import { useTranslation } from '../lib/i18n';
 import Board from './Board';
 import Clock from './Clock';
 import MoveHistory from './MoveHistory';
@@ -11,10 +12,12 @@ import GameOverModal from './GameOverModal';
 import PieceGuide from './PieceGuide';
 import ConnectionStatus from './ConnectionStatus';
 import PieceSVG from './PieceSVG';
+import Header from './Header';
 
 export default function GamePage() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [gameState, setGameState] = useState<ClientGameState | null>(null);
   const [playerColor, setPlayerColor] = useState<PieceColor | null>(null);
@@ -180,7 +183,7 @@ export default function GamePage() {
   }, [gameState, playerColor, isMyTurn]);
 
   const handleResign = () => {
-    if (window.confirm('Are you sure you want to resign?')) {
+    if (window.confirm(t('game.resign_confirm'))) {
       socket.emit('resign');
     }
   };
@@ -233,20 +236,13 @@ export default function GamePage() {
   if (gameState && gameState.status === 'waiting') {
     return (
       <div className="min-h-screen bg-surface flex flex-col">
-        <header className="bg-surface-alt border-b border-surface-hover">
-          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
-            <button onClick={() => navigate('/')} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <PieceSVG type="K" color="white" size={36} />
-              <h1 className="text-xl font-bold text-text-bright tracking-tight">Makruk</h1>
-            </button>
-          </div>
-        </header>
+        <Header />
 
-        <main className="flex-1 flex items-center justify-center px-4">
-          <div className="bg-surface-alt border border-surface-hover rounded-xl p-8 max-w-md w-full text-center animate-slideUp">
+        <main className="flex-1 flex items-center justify-center p-4 sm:p-6">
+          <div className="bg-surface-alt border border-surface-hover rounded-xl p-6 sm:p-8 max-w-md w-full text-center animate-slideUp">
             <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-6" />
-            <h2 className="text-2xl font-bold text-text-bright mb-2">Waiting for opponent</h2>
-            <p className="text-text-dim mb-6">Share this link with a friend to start playing</p>
+            <h2 className="text-xl sm:text-2xl font-bold text-text-bright mb-2">{t('game.waiting_title')}</h2>
+            <p className="text-text-dim mb-6 text-sm sm:text-base">{t('game.waiting_desc')}</p>
 
             <div className="flex items-center gap-2 bg-surface rounded-lg p-2 mb-4">
               <input
@@ -263,12 +259,12 @@ export default function GamePage() {
                     : 'bg-surface-hover hover:bg-primary/20 text-text-bright'
                 }`}
               >
-                {copied ? 'Copied!' : 'Copy'}
+                {copied ? t('game.copied') : t('game.copy')}
               </button>
             </div>
 
-            <p className="text-text-dim text-xs">
-              You are playing as <span className="font-bold text-text-bright">{playerColor}</span>
+            <p className="text-text-dim text-xs sm:text-sm">
+              {t('game.playing_as', { color: playerColor ? t(`common.${playerColor}`) : '' })}
             </p>
           </div>
         </main>
@@ -280,21 +276,14 @@ export default function GamePage() {
   if (error && !gameState) {
     return (
       <div className="min-h-screen bg-surface flex flex-col">
-        <header className="bg-surface-alt border-b border-surface-hover">
-          <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
-            <button onClick={() => navigate('/')} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-              <PieceSVG type="K" color="white" size={36} />
-              <h1 className="text-xl font-bold text-text-bright tracking-tight">Makruk</h1>
-            </button>
-          </div>
-        </header>
-        <main className="flex-1 flex items-center justify-center px-4">
-          <div className="bg-surface-alt border border-surface-hover rounded-xl p-8 max-w-md w-full text-center">
+        <Header />
+        <main className="flex-1 flex items-center justify-center p-4 sm:p-6">
+          <div className="bg-surface-alt border border-surface-hover rounded-xl p-6 sm:p-8 max-w-md w-full text-center">
             <div className="text-4xl mb-4">⚠️</div>
-            <h2 className="text-xl font-bold text-danger mb-2">Error</h2>
-            <p className="text-text-dim mb-4">{error}</p>
-            <button onClick={() => navigate('/')} className="px-6 py-2 bg-primary text-white rounded-lg font-semibold">
-              Back to Home
+            <h2 className="text-lg sm:text-xl font-bold text-danger mb-2">{t('game.error')}</h2>
+            <p className="text-text-dim mb-4 text-sm sm:text-base">{error}</p>
+            <button onClick={() => navigate('/')} className="px-6 py-2 bg-primary text-white rounded-lg font-semibold text-sm sm:text-base">
+              {t('common.back_home')}
             </button>
           </div>
         </main>
@@ -305,10 +294,13 @@ export default function GamePage() {
   // Loading state
   if (!gameState) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-text-dim">Connecting to game...</p>
+      <div className="min-h-screen bg-surface flex flex-col">
+        <Header />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-text-dim text-sm sm:text-base">{t('game.connecting')}</p>
+          </div>
         </div>
       </div>
     );
@@ -320,20 +312,20 @@ export default function GamePage() {
     <div className="min-h-screen bg-surface flex flex-col">
       <ConnectionStatus />
 
-      {/* Header */}
+      {/* Compact Header for playing state */}
       <header className="bg-surface-alt border-b border-surface-hover">
         <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
           <button onClick={() => navigate('/')} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <PieceSVG type="K" color="white" size={32} />
-            <h1 className="text-lg font-bold text-text-bright tracking-tight">Makruk</h1>
+            <h1 className="text-lg font-bold text-text-bright tracking-tight">{t('app.name')}</h1>
           </button>
-          <div className="flex items-center gap-2 text-sm text-text-dim">
-            <span>Game: <span className="font-mono text-text">{gameId}</span></span>
+          <div className="flex items-center gap-2 text-xs sm:text-sm text-text-dim">
+            <span>{t('game.game_label')} <span className="font-mono text-text">{gameId}</span></span>
             <button
               onClick={copyGameLink}
               className="px-2 py-1 rounded bg-surface-hover hover:bg-primary/20 text-text text-xs transition-colors"
             >
-              {copied ? '✓' : 'Share'}
+              {copied ? t('game.copied') : t('game.share')}
             </button>
           </div>
         </div>
@@ -341,32 +333,34 @@ export default function GamePage() {
 
       {/* Disconnect banner */}
       {opponentDisconnected && (
-        <div className="bg-accent/20 border-b border-accent/30 text-center py-2 text-sm text-accent">
-          Opponent disconnected. Waiting for reconnection...
+        <div className="bg-accent/20 border-b border-accent/30 text-center py-2 text-xs sm:text-sm text-accent">
+          {t('game.opponent_dc')}
         </div>
       )}
 
       {/* Draw offer banner */}
       {drawOffered && (
-        <div className="bg-primary/20 border-b border-primary/30 text-center py-3 text-sm flex items-center justify-center gap-3">
-          <span className="text-text-bright">Your opponent offers a draw</span>
-          <button
-            onClick={() => handleRespondDraw(true)}
-            className="px-4 py-1 bg-primary text-white rounded font-semibold text-sm"
-          >
-            Accept
-          </button>
-          <button
-            onClick={() => handleRespondDraw(false)}
-            className="px-4 py-1 bg-surface-hover text-text-bright rounded font-semibold text-sm"
-          >
-            Decline
-          </button>
+        <div className="bg-primary/20 border-b border-primary/30 text-center py-3 text-xs sm:text-sm flex items-center justify-center gap-3 flex-wrap px-2">
+          <span className="text-text-bright">{t('game.draw_offer_received')}</span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleRespondDraw(true)}
+              className="px-4 py-1 bg-primary text-white rounded font-semibold text-sm"
+            >
+              {t('game.accept')}
+            </button>
+            <button
+              onClick={() => handleRespondDraw(false)}
+              className="px-4 py-1 bg-surface-hover text-text-bright rounded font-semibold text-sm"
+            >
+              {t('game.decline')}
+            </button>
+          </div>
         </div>
       )}
 
       {/* Main Game Area */}
-      <main className="flex-1 flex items-center justify-center px-4 py-4">
+      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 py-4">
         <div className="flex flex-col lg:flex-row items-center lg:items-start gap-6 w-full max-w-[1100px]">
           {/* Board Column */}
           <div className="flex flex-col items-center gap-2 w-full lg:flex-1 lg:max-w-[calc(100vh-180px)] max-w-[720px]">
@@ -375,7 +369,7 @@ export default function GamePage() {
               time={playerColor === 'white' ? gameState.blackTime : gameState.whiteTime}
               isActive={gameState.turn === opponentColor && gameState.status === 'playing'}
               color={opponentColor}
-              playerName={opponentColor === 'white' ? 'White' : 'Black'}
+              playerName={opponentColor === 'white' ? t('common.white') : t('common.black')}
             />
 
             {/* Board */}
@@ -398,7 +392,7 @@ export default function GamePage() {
               time={playerColor === 'white' ? gameState.whiteTime : gameState.blackTime}
               isActive={gameState.turn === playerColor && gameState.status === 'playing'}
               color={playerColor || 'white'}
-              playerName={playerColor === 'white' ? 'White' : 'Black'}
+              playerName={playerColor === 'white' ? t('common.white') : t('common.black')}
             />
           </div>
 
@@ -414,9 +408,9 @@ export default function GamePage() {
             `}>
               {gameState.gameOver
                 ? gameState.winner
-                  ? `${gameState.winner === playerColor ? 'You won!' : 'You lost'}`
-                  : 'Draw'
-                : isMyTurn ? 'Your turn' : "Opponent's turn"
+                  ? (gameState.winner === playerColor ? t('game.you_won') : t('game.you_lost'))
+                  : t('common.draw')
+                : isMyTurn ? t('game.your_turn') : t('game.opponent_turn')
               }
             </div>
 
@@ -429,16 +423,16 @@ export default function GamePage() {
                 <button
                   onClick={handleOfferDraw}
                   className="flex-1 py-2 px-3 bg-surface-alt hover:bg-surface-hover text-text text-sm rounded-lg border border-surface-hover transition-colors"
-                  title="Offer Draw"
+                  title={t('game.offer_draw')}
                 >
-                  ½ Draw
+                  {t('game.offer_draw')}
                 </button>
                 <button
                   onClick={handleResign}
                   className="flex-1 py-2 px-3 bg-surface-alt hover:bg-danger/20 text-text hover:text-danger text-sm rounded-lg border border-surface-hover transition-colors"
-                  title="Resign"
+                  title={t('game.resign')}
                 >
-                  ⚐ Resign
+                  {t('game.resign')}
                 </button>
               </div>
             )}
@@ -448,7 +442,7 @@ export default function GamePage() {
               onClick={() => setShowGuide(true)}
               className="w-full py-2 px-3 bg-surface-alt hover:bg-surface-hover text-text-dim hover:text-text-bright text-sm rounded-lg border border-surface-hover transition-colors"
             >
-              📖 Piece Guide
+              {t('game.piece_guide')}
             </button>
           </div>
         </div>
