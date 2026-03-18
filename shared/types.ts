@@ -89,6 +89,10 @@ export interface ServerToClientEvents {
   opponent_disconnected: () => void;
   opponent_reconnected: () => void;
   error: (data: { message: string }) => void;
+  matchmaking_started: () => void;
+  matchmaking_found: (data: { gameId: string; color: PieceColor }) => void;
+  matchmaking_cancelled: () => void;
+  queue_status: (data: { playersInQueue: number }) => void;
 }
 
 export interface ClientToServerEvents {
@@ -99,4 +103,6 @@ export interface ClientToServerEvents {
   offer_draw: () => void;
   respond_draw: (data: { accept: boolean }) => void;
   request_rematch: () => void;
+  find_game: (data: { timeControl: TimeControl }) => void;
+  cancel_matchmaking: () => void;
 }

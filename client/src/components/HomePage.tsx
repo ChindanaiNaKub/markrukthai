@@ -75,6 +75,7 @@ export default function HomePage() {
           </div>
           <nav className="flex items-center gap-4 text-sm">
             <span className="text-primary font-medium">Play</span>
+            <button onClick={() => navigate('/puzzles')} className="text-text-dim hover:text-text-bright transition-colors">Puzzles</button>
             <button onClick={() => navigate('/games')} className="text-text-dim hover:text-text-bright transition-colors">Games</button>
             <button onClick={() => navigate('/about')} className="text-text-dim hover:text-text-bright transition-colors">About</button>
           </nav>
@@ -93,16 +94,72 @@ export default function HomePage() {
           </div>
           <h2 className="text-4xl font-bold text-text-bright mb-2">Play Makruk Online</h2>
           <p className="text-text-dim text-lg max-w-md mx-auto">
-            The ancient Thai game of chess. Free, no registration required.
-            Create a game and share the link with a friend.
+            The ancient Thai game of chess. Play online, offline with bots,
+            or sharpen your skills with puzzles.
           </p>
         </div>
 
-        {/* Create Game Card */}
-        <div className="bg-surface-alt border border-surface-hover rounded-xl p-6 w-full max-w-lg mb-6 animate-slideUp">
-          <h3 className="text-lg font-semibold text-text-bright mb-4">Create a Game</h3>
+        {/* Quick Play / Matchmaking Card */}
+        <div className="bg-surface-alt border border-accent/30 rounded-xl p-6 w-full max-w-lg mb-4 animate-slideUp">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-2xl">⚡</span>
+            <div>
+              <h3 className="text-lg font-semibold text-text-bright">Quick Play</h3>
+              <p className="text-text-dim text-xs">Find an opponent instantly — no link sharing needed</p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/quick-play')}
+            className="w-full py-3 px-6 bg-accent hover:bg-accent/80 text-white font-bold rounded-lg text-lg transition-colors shadow-md"
+          >
+            Find Opponent
+          </button>
+        </div>
 
-          {/* Time Control */}
+        {/* Play Options Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-lg mb-4">
+          {/* Play with Friend */}
+          <button
+            onClick={handleCreateGame}
+            disabled={isCreating}
+            className="bg-surface-alt border border-surface-hover rounded-xl p-5 text-center hover:border-primary/50 transition-all hover:shadow-lg group"
+          >
+            <div className="text-3xl mb-2">🤝</div>
+            <h3 className="font-semibold text-text-bright text-sm group-hover:text-primary-light transition-colors">
+              {isCreating ? 'Creating...' : 'Play a Friend'}
+            </h3>
+            <p className="text-text-dim text-xs mt-1">Share a link</p>
+          </button>
+
+          {/* Play vs Bot */}
+          <button
+            onClick={() => navigate('/bot')}
+            className="bg-surface-alt border border-surface-hover rounded-xl p-5 text-center hover:border-primary/50 transition-all hover:shadow-lg group"
+          >
+            <div className="text-3xl mb-2">🤖</div>
+            <h3 className="font-semibold text-text-bright text-sm group-hover:text-primary-light transition-colors">
+              Play vs Bot
+            </h3>
+            <p className="text-text-dim text-xs mt-1">3 difficulty levels</p>
+          </button>
+
+          {/* Puzzles */}
+          <button
+            onClick={() => navigate('/puzzles')}
+            className="bg-surface-alt border border-surface-hover rounded-xl p-5 text-center hover:border-primary/50 transition-all hover:shadow-lg group"
+          >
+            <div className="text-3xl mb-2">🧩</div>
+            <h3 className="font-semibold text-text-bright text-sm group-hover:text-primary-light transition-colors">
+              Puzzles
+            </h3>
+            <p className="text-text-dim text-xs mt-1">Tactical training</p>
+          </button>
+        </div>
+
+        {/* Time Control + Create Game */}
+        <div className="bg-surface-alt border border-surface-hover rounded-xl p-6 w-full max-w-lg mb-4 animate-slideUp">
+          <h3 className="text-lg font-semibold text-text-bright mb-4">Create a Private Game</h3>
+
           <div className="mb-5">
             <label className="text-sm text-text-dim mb-2 block">Time Control</label>
             <div className="grid grid-cols-3 gap-2">
@@ -184,7 +241,7 @@ export default function HomePage() {
         <div className="mt-10 max-w-lg w-full">
           <details className="bg-surface-alt border border-surface-hover rounded-xl overflow-hidden">
             <summary className="px-6 py-4 cursor-pointer text-text-bright font-semibold hover:bg-surface-hover transition-colors">
-              📜 How to Play Makruk
+              How to Play Makruk
             </summary>
             <div className="px-6 pb-5 text-text-dim text-sm space-y-3">
               <p>Makruk (Thai Chess) is the traditional chess of Thailand, closely related to the original Indian game of chess.</p>

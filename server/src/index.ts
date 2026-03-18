@@ -5,6 +5,7 @@ import cors from 'cors';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
 import { GameManager } from './gameManager';
+import { MatchmakingQueue } from './matchmaking';
 import { initDatabase, saveCompletedGame, getRecentGames, getGame as getDbGame, getStats, getGameCount, saveFeedback } from './database';
 import { ServerToClientEvents, ClientToServerEvents, GameRoom } from '../../shared/types';
 
@@ -53,9 +54,12 @@ app.use(express.static(clientDist));
 initDatabase();
 
 const gameManager = new GameManager();
+const matchmaking = new MatchmakingQueue();
 
 // Cleanup old games every 30 minutes
 setInterval(() => gameManager.cleanupOldGames(), 1800000);
+// Cleanup stale matchmaking entries every minute
+setInterval(() => matchmaking.cleanupStale(), 60000);
 
 function saveGameToDb(room: GameRoom, reason: string) {
   const winner = room.gameState.winner;
@@ -269,8 +273,49 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('find_game', ({ timeControl }) => {
+    console.log(`Player ${socket.id} searching for game: ${timeControl.initial}+${timeControl.increment}`);
+
+    matchmaking.addToQueue(socket.id, timeControl);
+    socket.emit('matchmaking_started');
+    socket.emit('queue_status', { playersInQueue: matchmaking.getQueueSizeForTimeControl(timeControl) });
+
+    const match = matchmaking.findMatch(socket.id);
+    if (match) {
+      matchmaking.removeFromQueue(socket.id);
+      matchmaking.removeFromQueue(match.socketId);
+
+      const room = gameManager.createGame(timeControl);
+
+      const whiteId = Math.random() < 0.5 ? socket.id : match.socketId;
+      const blackId = whiteId === socket.id ? match.socketId : socket.id;
+
+      room.white = whiteId;
+      room.black = blackId;
+      room.status = 'playing';
+      room.gameState.lastMoveTime = Date.now();
+
+      gameManager.setPlayerGame(whiteId, room.id);
+      gameManager.setPlayerGame(blackId, room.id);
+
+      console.log(`Match found: ${whiteId} vs ${blackId} -> game ${room.id}`);
+
+      io.to(whiteId).emit('matchmaking_found', { gameId: room.id, color: 'white' });
+      io.to(blackId).emit('matchmaking_found', { gameId: room.id, color: 'black' });
+    }
+  });
+
+  socket.on('cancel_matchmaking', () => {
+    const removed = matchmaking.removeFromQueue(socket.id);
+    if (removed) {
+      console.log(`Player ${socket.id} cancelled matchmaking`);
+      socket.emit('matchmaking_cancelled');
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log(`Player disconnected: ${socket.id}`);
+    matchmaking.removeFromQueue(socket.id);
     const result = gameManager.handleDisconnect(socket.id);
     if (result) {
       const room = gameManager.getGame(result.gameId);

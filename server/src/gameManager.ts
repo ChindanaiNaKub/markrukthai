@@ -214,6 +214,10 @@ export class GameManager {
     return this.playerGames.get(socketId) || null;
   }
 
+  setPlayerGame(socketId: string, gameId: string): void {
+    this.playerGames.set(socketId, gameId);
+  }
+
   getClientGameState(room: GameRoom, socketId: string): ClientGameState {
     const playerColor = this.getPlayerColor(room, socketId);
     return {
