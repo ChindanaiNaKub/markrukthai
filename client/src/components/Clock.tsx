@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import type { PieceColor } from '@shared/types';
 
 interface ClockProps {
-  time: number; // milliseconds
+  time: number;
   isActive: boolean;
   color: PieceColor;
   playerName: string;
@@ -32,11 +32,9 @@ export default function Clock({ time, isActive, color, playerName }: ClockProps)
 
   useEffect(() => {
     if (!isActive) return;
-
     const interval = setInterval(() => {
       setDisplayTime(prev => Math.max(0, prev - 100));
     }, 100);
-
     return () => clearInterval(interval);
   }, [isActive]);
 
@@ -45,23 +43,25 @@ export default function Clock({ time, isActive, color, playerName }: ClockProps)
 
   return (
     <div className={`
-      flex items-center justify-between rounded-lg px-5 py-2.5 w-full
+      flex items-center justify-between rounded-xl px-4 sm:px-5 py-2.5 w-full
       transition-all duration-200
       ${isActive
         ? isCritical
-          ? 'bg-danger/20 border border-danger/40'
-          : 'bg-primary/15 border border-primary/30'
-        : 'bg-surface-alt border border-surface-hover'
+          ? 'bg-danger/15 border border-danger/30 shadow-sm shadow-danger/10'
+          : 'bg-primary/10 border border-primary/25 shadow-sm shadow-primary/10'
+        : 'bg-surface-alt border border-surface-hover/60'
       }
     `}>
-      <div className="flex items-center gap-2">
-        <div className={`w-3 h-3 rounded-full ${
-          color === 'white' ? 'bg-white border border-gray-400' : 'bg-gray-800 border border-gray-600'
+      <div className="flex items-center gap-2.5">
+        <div className={`w-2.5 h-2.5 rounded-full ring-2 ${
+          color === 'white'
+            ? 'bg-white/90 ring-white/30'
+            : 'bg-surface ring-text-dim/30'
         }`} />
-        <span className="text-text-bright text-base font-medium">{playerName}</span>
+        <span className="text-text-bright text-sm font-medium">{playerName}</span>
       </div>
       <div className={`
-        font-mono text-2xl font-bold tabular-nums
+        font-mono text-xl sm:text-2xl font-bold tabular-nums tracking-tight
         ${isCritical ? 'text-danger' : isLow ? 'text-accent' : 'text-text-bright'}
         ${isActive && isCritical ? 'animate-pulse' : ''}
       `}>

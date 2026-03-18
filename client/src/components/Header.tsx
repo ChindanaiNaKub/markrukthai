@@ -12,44 +12,52 @@ export default function Header({ active, subtitle, right }: HeaderProps) {
   const navigate = useNavigate();
   const { t, lang, setLang } = useTranslation();
 
+  const navItem = (key: 'play' | 'puzzles' | 'games' | 'about', path: string, label: string) => (
+    <button
+      key={key}
+      onClick={() => navigate(path)}
+      className={`
+        relative px-1 py-0.5 text-sm transition-colors duration-150
+        ${active === key
+          ? 'text-primary font-semibold'
+          : 'text-text-dim hover:text-text-bright'
+        }
+      `}
+    >
+      {label}
+      {active === key && (
+        <span className="absolute -bottom-2.5 left-0 right-0 h-0.5 bg-primary rounded-full" />
+      )}
+    </button>
+  );
+
   return (
-    <header className="bg-surface-alt border-b border-surface-hover">
-      <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
+    <header className="bg-surface-alt/80 backdrop-blur-md border-b border-surface-hover/60 sticky top-0 z-40">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/')} className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <PieceSVG type="K" color="white" size={32} />
-            <h1 className="text-lg font-bold text-text-bright tracking-tight">{t('app.name')}</h1>
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 transition-opacity duration-150 hover:opacity-80 active:opacity-60"
+          >
+            <PieceSVG type="K" color="white" size={28} />
+            <span className="text-base font-bold text-text-bright tracking-tight leading-none">
+              {t('app.name')}
+            </span>
           </button>
-          {subtitle && <span className="text-text-dim text-sm hidden sm:inline">{subtitle}</span>}
+          {subtitle && (
+            <span className="text-text-dim text-sm hidden sm:inline border-l border-surface-hover pl-3 ml-1">
+              {subtitle}
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-5">
           {active !== undefined && (
-            <nav className="hidden sm:flex items-center gap-4 text-sm">
-              <button
-                onClick={() => navigate('/')}
-                className={active === 'play' ? 'text-primary font-medium' : 'text-text-dim hover:text-text-bright transition-colors'}
-              >
-                {t('nav.play')}
-              </button>
-              <button
-                onClick={() => navigate('/puzzles')}
-                className={active === 'puzzles' ? 'text-primary font-medium' : 'text-text-dim hover:text-text-bright transition-colors'}
-              >
-                {t('nav.puzzles')}
-              </button>
-              <button
-                onClick={() => navigate('/games')}
-                className={active === 'games' ? 'text-primary font-medium' : 'text-text-dim hover:text-text-bright transition-colors'}
-              >
-                {t('nav.games')}
-              </button>
-              <button
-                onClick={() => navigate('/about')}
-                className={active === 'about' ? 'text-primary font-medium' : 'text-text-dim hover:text-text-bright transition-colors'}
-              >
-                {t('nav.about')}
-              </button>
+            <nav className="hidden sm:flex items-center gap-5">
+              {navItem('play', '/', t('nav.play'))}
+              {navItem('puzzles', '/puzzles', t('nav.puzzles'))}
+              {navItem('games', '/games', t('nav.games'))}
+              {navItem('about', '/about', t('nav.about'))}
             </nav>
           )}
 
@@ -57,7 +65,7 @@ export default function Header({ active, subtitle, right }: HeaderProps) {
 
           <button
             onClick={() => setLang(lang === 'en' ? 'th' : 'en')}
-            className="px-2.5 py-1 rounded-md bg-surface hover:bg-surface-hover border border-surface-hover text-text text-xs font-bold transition-colors"
+            className="h-7 px-2.5 rounded-md bg-surface hover:bg-surface-hover border border-surface-hover/60 text-text-dim hover:text-text-bright text-xs font-semibold tracking-wide transition-all duration-150 active:scale-95"
             title={lang === 'en' ? 'เปลี่ยนเป็นภาษาไทย' : 'Switch to English'}
           >
             {t('lang.switch')}

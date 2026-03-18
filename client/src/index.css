@@ -1,33 +1,101 @@
 @import "tailwindcss";
 
+/* ─── OKLCH Color System ─────────────────────────────────────────────
+   Warm amber-tinted neutrals inspired by traditional Thai wood & silk.
+   All neutrals carry a subtle warm hue — never pure black or gray.
+   Board colors follow the classic Lichess-style wooden tones.
+   ──────────────────────────────────────────────────────────────────── */
+
 @theme {
-  --color-board-light: #e8c690;
-  --color-board-dark: #b58863;
-  --color-board-selected: #829769;
-  --color-board-legal: #646f40;
-  --color-board-lastmove: #cdd26a;
-  --color-board-check: #e84040;
-  --color-surface: #161512;
-  --color-surface-alt: #1e1d1a;
-  --color-surface-hover: #2b2926;
-  --color-primary: #629924;
-  --color-primary-light: #7db832;
-  --color-accent: #bf811d;
-  --color-text: #bababa;
-  --color-text-bright: #e0e0e0;
-  --color-text-dim: #888888;
-  --color-danger: #cc3333;
+  /* Board */
+  --color-board-light: oklch(0.82 0.06 75);
+  --color-board-dark: oklch(0.62 0.08 60);
+  --color-board-selected: oklch(0.60 0.10 130);
+  --color-board-legal: oklch(0.50 0.08 120);
+  --color-board-lastmove: oklch(0.80 0.12 100);
+  --color-board-check: oklch(0.55 0.22 25);
+
+  /* Surfaces — warm-tinted darks, never pure black */
+  --color-surface: oklch(0.16 0.015 65);
+  --color-surface-alt: oklch(0.19 0.015 65);
+  --color-surface-hover: oklch(0.24 0.015 65);
+
+  /* Brand */
+  --color-primary: oklch(0.58 0.16 135);
+  --color-primary-light: oklch(0.66 0.18 135);
+  --color-accent: oklch(0.62 0.14 70);
+  --color-danger: oklch(0.52 0.20 25);
+
+  /* Text — tinted, never pure gray */
+  --color-text: oklch(0.76 0.015 65);
+  --color-text-bright: oklch(0.90 0.01 65);
+  --color-text-dim: oklch(0.56 0.015 65);
 }
 
-body {
-  margin: 0;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  min-height: 100vh;
+/* ─── Typography ─────────────────────────────────────────────────────
+   DM Sans: geometric, modern, excellent for UI. 
+   Noto Sans Thai: proper Thai script rendering.
+   Modular scale ≈ 1.25 (major third).
+   ──────────────────────────────────────────────────────────────────── */
+
+@layer base {
+  html {
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    hanging-punctuation: first last;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'DM Sans', 'Noto Sans Thai', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+    letter-spacing: -0.02em;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: oklch(0.58 0.16 135 / 0.35);
+    color: var(--color-text-bright);
+  }
 }
 
-/* Board square colors */
+/* ─── Focus & Interaction ────────────────────────────────────────────
+   Visible focus rings for keyboard users, subtle hover lifts,
+   press feedback on interactive elements.
+   ──────────────────────────────────────────────────────────────────── */
+
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+/* ─── Board squares ──────────────────────────────────────────────── */
+
 .board-square-light {
   background-color: var(--color-board-light);
 }
@@ -38,16 +106,22 @@ body {
   background-color: var(--color-board-selected) !important;
 }
 .board-square-lastmove-light {
-  background-color: #cdd26a !important;
+  background-color: oklch(0.80 0.12 100) !important;
 }
 .board-square-lastmove-dark {
-  background-color: #aaa23a !important;
+  background-color: oklch(0.65 0.12 100) !important;
 }
 .board-square-check {
-  background: radial-gradient(ellipse at center, rgba(255, 0, 0, 0.6) 0%, rgba(200, 0, 0, 0.3) 50%, transparent 80%) !important;
+  background: radial-gradient(
+    ellipse at center,
+    oklch(0.50 0.28 25 / 0.7) 0%,
+    oklch(0.45 0.18 25 / 0.35) 50%,
+    transparent 80%
+  ) !important;
 }
 
-/* Legal move indicators */
+/* ─── Legal-move indicators ──────────────────────────────────────── */
+
 .legal-dot {
   position: absolute;
   top: 50%;
@@ -56,65 +130,80 @@ body {
   width: 30%;
   height: 30%;
   border-radius: 50%;
-  background-color: rgba(0, 0, 0, 0.15);
+  background-color: oklch(0.20 0 0 / 0.18);
   pointer-events: none;
 }
 .legal-capture {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   border-radius: 50%;
-  border: 5px solid rgba(0, 0, 0, 0.15);
+  border: 5px solid oklch(0.20 0 0 / 0.18);
   pointer-events: none;
   box-sizing: border-box;
 }
 
-/* Piece styling */
+/* ─── Piece interaction ──────────────────────────────────────────── */
+
 .piece {
   cursor: grab;
   user-select: none;
   -webkit-user-select: none;
-  transition: transform 0.1s ease;
+  transition: transform 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 .piece:active {
   cursor: grabbing;
 }
 .piece-dragging {
   z-index: 100;
-  transform: scale(1.15);
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4));
+  transform: scale(1.12);
+  filter: drop-shadow(0 6px 12px oklch(0.10 0.02 65 / 0.5));
 }
 
-/* Move animation */
+/* ─── Motion ─────────────────────────────────────────────────────────
+   Subtle, purposeful. Ease-out for enters, ease-in for exits.
+   No bounce or elastic — clean and deliberate.
+   ──────────────────────────────────────────────────────────────────── */
+
 @keyframes pieceLand {
-  0% { transform: scale(1.1); }
-  50% { transform: scale(0.95); }
+  0%   { transform: scale(1.08); }
   100% { transform: scale(1); }
 }
 .piece-landed {
-  animation: pieceLand 0.15s ease-out;
+  animation: pieceLand 0.12s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-/* Animations */
 @keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
 }
 .animate-fadeIn {
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 .animate-slideUp {
-  animation: slideUp 0.3s ease-out;
+  animation: slideUp 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-/* Prevent text selection on board */
+@keyframes spinnerRotate {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Reduced motion ─────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ─── Board touch handling ───────────────────────────────────────── */
+
 .board-no-select {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
@@ -122,7 +211,8 @@ body {
   touch-action: none;
 }
 
-/* Scrollbar */
+/* ─── Scrollbar ──────────────────────────────────────────────────── */
+
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -133,8 +223,12 @@ body {
   background: var(--color-surface-hover);
   border-radius: 3px;
 }
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.32 0.015 65);
+}
 
-/* Mobile-specific adjustments */
+/* ─── Responsive board ───────────────────────────────────────────── */
+
 @media (max-width: 640px) {
   .board-square-light, .board-square-dark {
     font-size: 8px;
