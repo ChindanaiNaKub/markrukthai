@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import type { Position, PieceColor, ClientGameState, Move } from '@shared/types';
-import { getLegalMoves, createInitialBoard, getBoardAtMove } from '@shared/engine';
+import { createInitialBoard, getBoardAtMove, getLegalMoves } from '@shared/engine';
 import { socket, connectSocket } from '../lib/socket';
 import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound, playGameStartSound } from '../lib/sounds';
 import { useTranslation } from '../lib/i18n';
+import { useGameInteraction } from '../hooks/useGameInteraction';
 import Board from './Board';
 import type { Arrow } from './Board';
 import Clock from './Clock';
@@ -23,8 +24,6 @@ export default function GamePage() {
 
   const [gameState, setGameState] = useState<ClientGameState | null>(null);
   const [playerColor, setPlayerColor] = useState<PieceColor | null>(null);
-  const [selectedSquare, setSelectedSquare] = useState<Position | null>(null);
-  const [legalMoves, setLegalMoves] = useState<Position[]>([]);
   const [gameOverInfo, setGameOverInfo] = useState<{ reason: string; winner: PieceColor | null } | null>(null);
   const [drawOffered, setDrawOffered] = useState(false);
   const [opponentDisconnected, setOpponentDisconnected] = useState(false);
@@ -34,15 +33,29 @@ export default function GamePage() {
   const [showGameOverModal, setShowGameOverModal] = useState(false);
   const joinedRef = useRef(false);
 
-  // Pre-move state
-  const [premove, setPremove] = useState<{ from: Position; to: Position } | null>(null);
-
   // Arrow state
   const [arrows, setArrows] = useState<Arrow[]>([]);
 
   // Keyboard navigation state
   const [viewMoveIndex, setViewMoveIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const isMyTurn = gameState?.turn === playerColor && gameState?.status === 'playing';
+
+  // Use the game interaction hook for move handling
+  const {
+    selectedSquare,
+    legalMoves,
+    premove,
+    handleSquareClick,
+    handlePieceDrop,
+    cancelPremove,
+    clearSelection,
+  } = useGameInteraction({
+    gameState,
+    playerColor,
+    isMyTurn,
+  });
 
   useEffect(() => {
     if (!gameId) return;
@@ -74,8 +87,7 @@ export default function GamePage() {
 
     const handleMoveMade = ({ move, gameState: gs }: { move: Move; gameState: ClientGameState }) => {
       setGameState(gs);
-      setSelectedSquare(null);
-      setLegalMoves([]);
+      clearSelection();
       setArrows([]);
       if (gs.isCheck) {
         playCheckSound();
@@ -90,7 +102,7 @@ export default function GamePage() {
       setGameState(gs);
       setGameOverInfo({ reason, winner });
       setShowGameOverModal(true);
-      setPremove(null);
+      cancelPremove();
       playGameOverSound();
     };
 
@@ -119,10 +131,9 @@ export default function GamePage() {
       setGameState(null);
       setGameOverInfo(null);
       setShowGameOverModal(false);
-      setSelectedSquare(null);
-      setLegalMoves([]);
+      clearSelection();
       setDrawOffered(false);
-      setPremove(null);
+      cancelPremove();
       setArrows([]);
       setViewMoveIndex(null);
       navigate(`/game/${newGameId}`);
@@ -163,9 +174,7 @@ export default function GamePage() {
       socket.off('game_created', handleGameCreated);
       socket.off('error', handleError);
     };
-  }, [gameId, navigate]);
-
-  const isMyTurn = gameState?.turn === playerColor && gameState?.status === 'playing';
+  }, [gameId, navigate, clearSelection, cancelPremove]);
 
   // Auto-execute premove when it becomes our turn
   useEffect(() => {
@@ -178,10 +187,9 @@ export default function GamePage() {
         socket.emit('make_move', { from: premove.from, to: premove.to });
       }
     }
-    setPremove(null);
-    setSelectedSquare(null);
-    setLegalMoves([]);
-  }, [isMyTurn, premove, gameState, playerColor]);
+    cancelPremove();
+    clearSelection();
+  }, [isMyTurn, premove, gameState, playerColor, cancelPremove, clearSelection]);
 
   // Keyboard navigation for move history
   useEffect(() => {
@@ -211,80 +219,6 @@ export default function GamePage() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameState, viewMoveIndex]);
-
-  const handleSquareClick = useCallback((pos: Position) => {
-    if (!gameState || !playerColor || gameState.status !== 'playing') return;
-
-    const piece = gameState.board[pos.row][pos.col];
-
-    // Pre-move logic: when it's not our turn, allow setting a premove
-    if (!isMyTurn && !gameState.gameOver) {
-      if (selectedSquare) {
-        if (pos.row !== selectedSquare.row || pos.col !== selectedSquare.col) {
-          const fromPiece = gameState.board[selectedSquare.row][selectedSquare.col];
-          if (fromPiece && fromPiece.color === playerColor) {
-            setPremove({ from: selectedSquare, to: pos });
-            setSelectedSquare(null);
-            setLegalMoves([]);
-            return;
-          }
-        }
-      }
-
-      if (piece && piece.color === playerColor) {
-        setSelectedSquare(pos);
-        setLegalMoves(getLegalMoves(gameState.board, pos));
-        setPremove(null);
-      } else {
-        setSelectedSquare(null);
-        setLegalMoves([]);
-      }
-      return;
-    }
-
-    if (selectedSquare) {
-      const isLegal = legalMoves.some(m => m.row === pos.row && m.col === pos.col);
-      if (isLegal) {
-        socket.emit('make_move', { from: selectedSquare, to: pos });
-        setSelectedSquare(null);
-        setLegalMoves([]);
-        setArrows([]);
-        return;
-      }
-    }
-
-    if (piece && piece.color === playerColor && isMyTurn) {
-      setSelectedSquare(pos);
-      setLegalMoves(getLegalMoves(gameState.board, pos));
-    } else {
-      setSelectedSquare(null);
-      setLegalMoves([]);
-    }
-  }, [gameState, playerColor, selectedSquare, legalMoves, isMyTurn]);
-
-  const handlePieceDrop = useCallback((from: Position, to: Position) => {
-    if (!gameState || !playerColor) return;
-
-    // Pre-move via drag
-    if (!isMyTurn && gameState.status === 'playing' && !gameState.gameOver) {
-      const piece = gameState.board[from.row][from.col];
-      if (piece && piece.color === playerColor) {
-        setPremove({ from, to });
-        setSelectedSquare(null);
-        setLegalMoves([]);
-        return;
-      }
-    }
-
-    if (!isMyTurn) return;
-    const legal = getLegalMoves(gameState.board, from);
-    if (legal.some(m => m.row === to.row && m.col === to.col)) {
-      socket.emit('make_move', { from, to });
-      setSelectedSquare(null);
-      setLegalMoves([]);
-      setArrows([]);
-    }
-  }, [gameState, playerColor, isMyTurn]);
 
   const handleResign = () => {
     if (window.confirm(t('game.resign_confirm'))) {
@@ -487,7 +421,7 @@ export default function GamePage() {
         <div className="bg-blue-900/30 border-b border-blue-500/30 text-center py-1.5 text-xs text-blue-300 flex items-center justify-center gap-2">
           <span>Pre-move set</span>
           <button
-            onClick={() => { setPremove(null); setSelectedSquare(null); setLegalMoves([]); }}
+            onClick={() => { cancelPremove(); clearSelection(); }}
             className="px-2 py-0.5 bg-surface-hover rounded text-xs hover:bg-danger/20 hover:text-danger transition-colors"
           >
             Cancel
