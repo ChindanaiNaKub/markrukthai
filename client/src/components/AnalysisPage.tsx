@@ -138,19 +138,30 @@ export default function AnalysisPage() {
 
   // Auto-scroll active move within the move list container only (never scroll the page)
   useEffect(() => {
-    const el = activeMoveRef.current;
     const container = scrollRef.current;
-    if (!el || !container) return;
+    if (!container) return;
 
-    const elTop = el.offsetTop;
-    const elBottom = elTop + el.offsetHeight;
-    const containerTop = container.scrollTop;
-    const containerBottom = containerTop + container.clientHeight;
+    // When viewing the initial position, reset move list to top
+    if (viewMoveIndex < 0) {
+      container.scrollTop = 0;
+      return;
+    }
 
-    if (elTop < containerTop) {
-      container.scrollTop = elTop - 4;
-    } else if (elBottom > containerBottom) {
-      container.scrollTop = elBottom - container.clientHeight + 4;
+    const el = activeMoveRef.current;
+    if (!el) return;
+
+    // Use bounding boxes (not offsetTop) to avoid incorrect math when
+    // grid/contents layout changes the offset parent.
+    const elRect = el.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    const topDelta = elRect.top - containerRect.top;
+    const bottomDelta = elRect.bottom - containerRect.bottom;
+
+    if (topDelta < 0) {
+      container.scrollTop += topDelta - 4;
+    } else if (bottomDelta > 0) {
+      container.scrollTop += bottomDelta + 4;
     }
   }, [viewMoveIndex]);
 
@@ -296,7 +307,7 @@ export default function AnalysisPage() {
     <div className="min-h-screen bg-surface flex flex-col" tabIndex={-1}>
       <Header subtitle={t('analysis.title')} />
 
-      <main className="flex-1 flex items-start justify-center px-4 py-4 overflow-hidden">
+      <main className="flex-1 flex items-start justify-center px-4 py-4 overflow-y-auto">
         <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 sm:gap-6 w-full max-w-[1200px]">
           {/* Board + Eval Bar (sticky on desktop) */}
           <div className="flex gap-2 w-full lg:flex-1 lg:max-w-[calc(100vh-140px)] max-w-[720px] lg:sticky lg:top-4 lg:self-start">
@@ -375,8 +386,8 @@ export default function AnalysisPage() {
             </div>
           </div>
 
-          {/* Side Panel (scrollable on desktop) */}
-          <div className="flex flex-col gap-3 lg:w-80 w-full max-w-[720px] lg:max-h-[calc(100vh-80px)] lg:overflow-y-auto lg:scrollbar-thin">
+          {/* Side Panel */}
+          <div className="flex flex-col gap-3 lg:w-80 w-full max-w-[720px] lg:self-start">
             {/* Analysis Status / Progress */}
             {analyzing && progress && (
               <div className="bg-surface-alt rounded-lg border border-surface-hover p-3">
