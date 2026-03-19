@@ -1,9 +1,23 @@
 import { useState } from 'react';
+
 import { useNavigate } from 'react-router-dom';
+
 import { socket, connectSocket } from '../lib/socket';
+
 import { useTranslation } from '../lib/i18n';
+
 import PieceSVG from './PieceSVG';
+
 import Header from './Header';
+
+import FriendSVG from './FriendSVG';
+
+import BotSVG from './BotSVG';
+
+import PuzzleSVG from './PuzzleSVG';
+
+import QuickPlaySVG from './QuickPlaySVG';
+
 import type { PieceType, PieceColor } from '@shared/types';
 
 const TIME_PRESETS = [
@@ -78,7 +92,7 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-          <h2 className="text-3xl sm:text-4xl font-bold text-text-bright mb-2">{t('home.hero_title')}</h2>
+          <h2 className="text-3xl sm:text-4xl display text-text-bright mb-2">{t('home.hero_title')}</h2>
           <p className="text-text-dim text-base sm:text-lg max-w-md mx-auto">
             {t('home.hero_desc')}
           </p>
@@ -87,9 +101,9 @@ export default function HomePage() {
         {/* Quick Play */}
         <div className="bg-surface-alt border border-accent/30 rounded-xl p-5 sm:p-6 w-full max-w-lg mb-4 animate-slideUp">
           <div className="flex items-center gap-3 mb-3">
-            <span className="text-2xl">⚡</span>
+            <QuickPlaySVG size={32} className="text-text-bright" />
             <div>
-              <h3 className="text-lg font-semibold text-text-bright">{t('home.quick_play')}</h3>
+              <h3 className="display text-lg text-text-bright">{t('home.quick_play')}</h3>
               <p className="text-text-dim text-xs">{t('home.quick_play_desc')}</p>
             </div>
           </div>
@@ -101,47 +115,42 @@ export default function HomePage() {
           </button>
         </div>
 
-        {/* Play Options Grid */}
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 w-full max-w-lg mb-4">
-          <button
-            onClick={handleCreateGame}
-            disabled={isCreating}
-            className="bg-surface-alt border border-surface-hover rounded-xl p-4 sm:p-5 text-center hover:border-primary/50 transition-all hover:shadow-lg group"
-          >
-            <div className="text-2xl sm:text-3xl mb-2">🤝</div>
-            <h3 className="font-semibold text-text-bright text-xs sm:text-sm group-hover:text-primary-light transition-colors">
-              {isCreating ? t('home.creating') : t('home.play_friend')}
-            </h3>
-            <p className="text-text-dim text-xs mt-1 hidden sm:block">{t('home.play_friend_desc')}</p>
-          </button>
-
-          <button
-            onClick={() => navigate('/bot')}
-            className="bg-surface-alt border border-surface-hover rounded-xl p-4 sm:p-5 text-center hover:border-primary/50 transition-all hover:shadow-lg group"
-          >
-            <div className="text-2xl sm:text-3xl mb-2">🤖</div>
-            <h3 className="font-semibold text-text-bright text-xs sm:text-sm group-hover:text-primary-light transition-colors">
+        {/* Play Options */}
+        <div className="flex flex-col lg:flex-row gap-6 w-full max-w-4xl mb-4">
+          <div className="flex-1 bg-surface-alt border border-accent/30 rounded-xl p-6 text-center hover:shadow-lg transition-shadow">
+            <BotSVG size={60} className="mx-auto mb-4 text-text-bright" />
+            <h3 className="display text-xl text-text-bright mb-2">{t('home.play_bot')}</h3>
+            <p className="text-text-dim text-sm mb-4">{t('home.play_bot_desc')}</p>
+            <p className="text-text-dim text-sm mb-4">Challenge our AI opponent with varying difficulty levels. Perfect for practice and improvement.</p>
+            <button
+              onClick={() => navigate('/bot')}
+              className="w-full py-3 px-6 bg-primary hover:bg-primary-light text-white font-bold rounded-lg transition-colors"
+            >
               {t('home.play_bot')}
-            </h3>
-            <p className="text-text-dim text-xs mt-1 hidden sm:block">{t('home.play_bot_desc')}</p>
-          </button>
-
-          <button
-            onClick={() => navigate('/puzzles')}
-            className="bg-surface-alt border border-surface-hover rounded-xl p-4 sm:p-5 text-center hover:border-primary/50 transition-all hover:shadow-lg group"
-          >
-            <div className="text-2xl sm:text-3xl mb-2">🧩</div>
-            <h3 className="font-semibold text-text-bright text-xs sm:text-sm group-hover:text-primary-light transition-colors">
-              {t('home.puzzles')}
-            </h3>
-            <p className="text-text-dim text-xs mt-1 hidden sm:block">{t('home.puzzles_desc')}</p>
-          </button>
+            </button>
+          </div>
+          <div className="flex-1 bg-surface-alt border border-surface-hover rounded-xl p-6 text-center hover:shadow-lg transition-shadow relative overflow-hidden group">
+            <div className="absolute inset-0 opacity-[0.03] group-hover:opacity-[0.05] transition-opacity pointer-events-none"
+              style={{ backgroundImage: 'linear-gradient(45deg, var(--color-text) 25%, transparent 25%), linear-gradient(-45deg, var(--color-text) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--color-text) 75%), linear-gradient(-45deg, transparent 75%, var(--color-text) 75%)', backgroundSize: '20px 20px', backgroundPosition: '0 0, 0 10px, 10px -10px, -10px 0px' }}
+            />
+            <div className="relative z-10">
+              <PuzzleSVG size={60} className="mx-auto mb-4 text-text-bright" />
+              <h3 className="display text-xl text-text-bright mb-2">{t('home.puzzles')}</h3>
+              <p className="text-text-dim text-sm mb-4">{t('home.puzzles_desc')}</p>
+              <p className="text-text-dim text-sm mb-4">Sharpen your tactical skills with curated puzzles from real games.</p>
+              <button
+                onClick={() => navigate('/puzzles')}
+                className="w-full py-3 px-6 bg-accent hover:bg-accent/80 text-white font-bold rounded-lg transition-colors"
+              >
+                {t('home.puzzles')}
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Time Control + Create Game */}
         <div className="bg-surface-alt border border-surface-hover rounded-xl p-5 sm:p-6 w-full max-w-lg mb-4 animate-slideUp">
-          <h3 className="text-lg font-semibold text-text-bright mb-4">{t('home.create_private')}</h3>
-
+          <h3 className="display text-lg font-semibold text-text-bright mb-4">{t('home.create_private')}</h3>
           <div className="mb-5">
             <label className="text-sm text-text-dim mb-2 block">{t('home.time_control')}</label>
             <div className="grid grid-cols-3 gap-2">
@@ -163,7 +172,6 @@ export default function HomePage() {
               ))}
             </div>
           </div>
-
           <button
             onClick={handleCreateGame}
             disabled={isCreating}
@@ -171,13 +179,11 @@ export default function HomePage() {
           >
             {isCreating ? t('home.creating') : t('home.play_with_friend')}
           </button>
-
           <div className="mt-3 flex items-center gap-3">
             <div className="flex-1 h-px bg-surface-hover" />
             <span className="text-text-dim text-xs">{t('home.or')}</span>
             <div className="flex-1 h-px bg-surface-hover" />
           </div>
-
           <button
             onClick={() => navigate('/local')}
             className="w-full mt-3 py-2 px-6 bg-surface hover:bg-surface-hover text-text border border-surface-hover font-medium rounded-lg transition-colors"
@@ -197,7 +203,7 @@ export default function HomePage() {
             </button>
           ) : (
             <div>
-              <h3 className="text-lg font-semibold text-text-bright mb-3">{t('home.join_title')}</h3>
+              <h3 className="display text-lg font-semibold text-text-bright mb-3">{t('home.join_title')}</h3>
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -222,7 +228,7 @@ export default function HomePage() {
         {/* Rules */}
         <div className="mt-8 sm:mt-10 max-w-lg w-full">
           <details className="bg-surface-alt border border-surface-hover rounded-xl overflow-hidden">
-            <summary className="px-5 sm:px-6 py-4 cursor-pointer text-text-bright font-semibold hover:bg-surface-hover transition-colors">
+            <summary className="px-5 sm:px-6 py-4 cursor-pointer text-text-bright display font-semibold hover:bg-surface-hover transition-colors">
               {t('home.rules_title')}
             </summary>
             <div className="px-5 sm:px-6 pb-5 text-text-dim text-sm space-y-3">

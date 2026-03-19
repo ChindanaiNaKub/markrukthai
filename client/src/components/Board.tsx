@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, memo } from 'react';
 import type { Board as BoardType, Position, PieceColor, Move } from '@shared/types';
 import PieceSVG from './PieceSVG';
 
@@ -38,7 +38,7 @@ interface BoardProps {
   squareAnnotations?: SquareAnnotation[];
 }
 
-export default function Board({
+export default memo(function Board({
   board,
   playerColor,
   isMyTurn,
@@ -510,4 +510,4 @@ export default function Board({
       )}
     </div>
   );
-}
+});
