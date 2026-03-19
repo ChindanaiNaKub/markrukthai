@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import type { PieceType, PieceColor } from '@shared/types';
 
 interface PieceSVGProps {
@@ -7,7 +8,7 @@ interface PieceSVGProps {
   className?: string;
 }
 
-export default function PieceSVG({ type, color, size, className }: PieceSVGProps) {
+const PieceSVG = memo(function PieceSVG({ type, color, size, className }: PieceSVGProps) {
   const fill = color === 'white' ? '#fff' : '#1a1a1a';
   const stroke = color === 'white' ? '#333' : '#666';
   const accent = color === 'white' ? '#e8c690' : '#555';
@@ -177,4 +178,6 @@ export default function PieceSVG({ type, color, size, className }: PieceSVGProps
       {renderPiece()}
     </svg>
   );
-}
+});
+
+export default PieceSVG;

@@ -100,9 +100,11 @@ export default function Board({
     return isCheck && checkSquare?.row === row && checkSquare?.col === col;
   }, [isCheck, checkSquare]);
 
-  const isLastMoved = useCallback((row: number, col: number) => {
-    return lastMove?.to.row === row && lastMove?.to.col === col;
-  }, [lastMove]);
+  const isPremoveSquare = useCallback((row: number, col: number) => {
+    if (!premove) return false;
+    return (premove.from.row === row && premove.from.col === col) ||
+           (premove.to.row === row && premove.to.col === col);
+  }, [premove]);
 
   const getSquareHighlight = useCallback((row: number, col: number): string | null => {
     if (!squareHighlights) return null;
