@@ -9,6 +9,7 @@ import Board from './Board';
 import type { Arrow } from './Board';
 import MoveHistory from './MoveHistory';
 import GameOverModal from './GameOverModal';
+import GameOverPanel from './GameOverPanel';
 import Header from './Header';
 import PieceSVG from './PieceSVG';
 
@@ -22,6 +23,7 @@ export default function BotGame() {
   const [selectedSquare, setSelectedSquare] = useState<Position | null>(null);
   const [legalMoves, setLegalMoves] = useState<Position[]>([]);
   const [gameOverInfo, setGameOverInfo] = useState<{ reason: string; winner: PieceColor | null } | null>(null);
+  const [showGameOverModal, setShowGameOverModal] = useState(false);
   const [botThinking, setBotThinking] = useState(false);
   const botTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [arrows, setArrows] = useState<Arrow[]>([]);
@@ -101,6 +103,10 @@ export default function BotGame() {
     setSelectedSquare(null);
     setLegalMoves([]);
   }, [isPlayerTurn, premove, gameState, playerColor, botThinking]);
+
+  useEffect(() => {
+    if (gameOverInfo) setShowGameOverModal(true);
+  }, [gameOverInfo]);
 
   // Keyboard navigation for move history
   useEffect(() => {
@@ -231,6 +237,7 @@ export default function BotGame() {
     setSelectedSquare(null);
     setLegalMoves([]);
     setGameOverInfo(null);
+    setShowGameOverModal(false);
     setBotThinking(false);
     setGameStarted(true);
     setArrows([]);
@@ -245,6 +252,7 @@ export default function BotGame() {
     setSelectedSquare(null);
     setLegalMoves([]);
     setGameOverInfo(null);
+    setShowGameOverModal(false);
     setBotThinking(false);
     setArrows([]);
     setViewMoveIndex(null);
@@ -452,24 +460,38 @@ export default function BotGame() {
           </div>
 
           <div className="flex flex-col gap-3 lg:w-72 w-full max-w-[720px]">
-            <div className={`
-              rounded-lg px-4 py-3 text-center font-semibold text-sm
-              ${gameState.gameOver
-                ? gameState.winner === playerColor
-                  ? 'bg-primary/20 text-primary-light border border-primary/30'
-                  : gameState.winner
-                    ? 'bg-danger/20 text-danger border border-danger/30'
-                    : 'bg-accent/20 text-accent border border-accent/30'
-                : isPlayerTurn
+            {/* Turn indicator (only during play) */}
+            {!gameState.gameOver && (
+              <div className={`
+                rounded-lg px-4 py-3 text-center font-semibold text-sm
+                ${isPlayerTurn
                   ? 'bg-primary/20 text-primary-light border border-primary/30'
                   : 'bg-surface-alt text-text-dim border border-surface-hover'
-              }
-            `}>
-              {gameState.gameOver
-                ? gameState.winner === playerColor ? t('bot.you_won') : gameState.winner ? t('bot.bot_wins') : t('common.draw')
-                : isPlayerTurn ? t('bot.your_turn') : t('bot.bot_thinking')
-              }
-            </div>
+                }
+              `}>
+                {isPlayerTurn ? t('bot.your_turn') : t('bot.bot_thinking')}
+              </div>
+            )}
+
+            {/* Inline Game Over Panel (Lichess-style) */}
+            {gameOverInfo && (
+              <GameOverPanel
+                winner={gameOverInfo.winner}
+                reason={gameOverInfo.reason}
+                playerColor={playerColor}
+                onRematch={handleStartGame}
+                onNewGame={handleReset}
+                onAnalyze={gameState.moveHistory.length > 0
+                  ? () => {
+                      const movesParam = encodeURIComponent(JSON.stringify(gameState.moveHistory));
+                      const result = gameState.winner || 'draw';
+                      const reason = gameOverInfo.reason;
+                      navigate(`/analysis/bot?moves=${movesParam}&result=${result}&reason=${reason}`);
+                    }
+                  : undefined
+                }
+              />
+            )}
 
             <MoveHistory
               moves={gameState.moveHistory}
@@ -484,20 +506,6 @@ export default function BotGame() {
               </div>
             )}
 
-            {gameState.gameOver && gameState.moveHistory.length > 0 && (
-              <button
-                onClick={() => {
-                  const movesParam = encodeURIComponent(JSON.stringify(gameState.moveHistory));
-                  const result = gameState.winner || 'draw';
-                  const reason = gameOverInfo?.reason || 'unknown';
-                  navigate(`/analysis/bot?moves=${movesParam}&result=${result}&reason=${reason}`);
-                }}
-                className="w-full py-2 px-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-sm rounded-lg border border-blue-600/30 transition-colors"
-              >
-                🔍 {t('analysis.analyze')}
-              </button>
-            )}
-
             {!gameState.gameOver && (
               <button
                 onClick={handleResign}
@@ -506,13 +514,6 @@ export default function BotGame() {
                 ⚐ {t('bot.resign')}
               </button>
             )}
-
-            <button
-              onClick={handleReset}
-              className="w-full py-2.5 px-4 bg-surface-alt hover:bg-surface-hover text-text-bright text-sm rounded-lg border border-surface-hover transition-colors"
-            >
-              ↺ {t('common.new_game')}
-            </button>
 
             <button
               onClick={() => navigate('/')}
@@ -524,7 +525,7 @@ export default function BotGame() {
         </div>
       </main>
 
-      {gameOverInfo && (
+      {gameOverInfo && showGameOverModal && (
         <GameOverModal
           winner={gameOverInfo.winner}
           reason={gameOverInfo.reason}
@@ -540,6 +541,7 @@ export default function BotGame() {
               }
             : undefined
           }
+          onClose={() => setShowGameOverModal(false)}
         />
       )}
     </div>

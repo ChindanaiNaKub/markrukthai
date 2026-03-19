@@ -10,6 +10,7 @@ import type { Arrow } from './Board';
 import Clock from './Clock';
 import MoveHistory from './MoveHistory';
 import GameOverModal from './GameOverModal';
+import GameOverPanel from './GameOverPanel';
 import PieceGuide from './PieceGuide';
 import ConnectionStatus from './ConnectionStatus';
 import PieceSVG from './PieceSVG';
@@ -30,6 +31,7 @@ export default function GamePage() {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showGuide, setShowGuide] = useState(false);
+  const [showGameOverModal, setShowGameOverModal] = useState(false);
   const joinedRef = useRef(false);
 
   // Pre-move state
@@ -87,6 +89,7 @@ export default function GamePage() {
     const handleGameOver = ({ reason, winner, gameState: gs }: { reason: string; winner: PieceColor | null; gameState: ClientGameState }) => {
       setGameState(gs);
       setGameOverInfo({ reason, winner });
+      setShowGameOverModal(true);
       setPremove(null);
       playGameOverSound();
     };
@@ -115,6 +118,7 @@ export default function GamePage() {
       joinedRef.current = false;
       setGameState(null);
       setGameOverInfo(null);
+      setShowGameOverModal(false);
       setSelectedSquare(null);
       setLegalMoves([]);
       setDrawOffered(false);
@@ -533,21 +537,33 @@ export default function GamePage() {
 
           {/* Side Panel */}
           <div className="flex flex-col gap-3 lg:w-72 w-full max-w-[720px]">
-            {/* Turn Indicator */}
-            <div className={`
-              rounded-lg px-4 py-3 text-center font-semibold text-sm
-              ${isMyTurn
-                ? 'bg-primary/20 text-primary-light border border-primary/30'
-                : 'bg-surface-alt text-text-dim border border-surface-hover'
-              }
-            `}>
-              {gameState.gameOver
-                ? gameState.winner
-                  ? (gameState.winner === playerColor ? t('game.you_won') : t('game.you_lost'))
-                  : t('common.draw')
-                : isMyTurn ? t('game.your_turn') : t('game.opponent_turn')
-              }
-            </div>
+            {/* Turn Indicator (only when game is in progress) */}
+            {!gameState.gameOver && (
+              <div className={`
+                rounded-lg px-4 py-3 text-center font-semibold text-sm
+                ${isMyTurn
+                  ? 'bg-primary/20 text-primary-light border border-primary/30'
+                  : 'bg-surface-alt text-text-dim border border-surface-hover'
+                }
+              `}>
+                {isMyTurn ? t('game.your_turn') : t('game.opponent_turn')}
+              </div>
+            )}
+
+            {/* Inline Game Over Panel (Lichess-style) */}
+            {gameOverInfo && (
+              <GameOverPanel
+                winner={gameOverInfo.winner}
+                reason={gameOverInfo.reason}
+                playerColor={playerColor}
+                onRematch={handleRematch}
+                onNewGame={handleNewGame}
+                onAnalyze={gameState.moveHistory.length > 0
+                  ? () => navigate(`/analysis/${gameId}`)
+                  : undefined
+                }
+              />
+            )}
 
             {/* Move History */}
             <MoveHistory
@@ -562,16 +578,6 @@ export default function GamePage() {
               <div className="text-center text-xs text-text-dim">
                 Use arrow keys to navigate moves
               </div>
-            )}
-
-            {/* Analyze button (shown after game over) */}
-            {gameState.gameOver && gameState.moveHistory.length > 0 && (
-              <button
-                onClick={() => navigate(`/analysis/${gameId}`)}
-                className="w-full py-2 px-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-sm rounded-lg border border-blue-600/30 transition-colors"
-              >
-                🔍 {t('analysis.analyze')}
-              </button>
             )}
 
             {/* Game Controls */}
@@ -605,8 +611,8 @@ export default function GamePage() {
         </div>
       </main>
 
-      {/* Game Over Modal */}
-      {gameOverInfo && (
+      {/* Game Over Modal (dismissible) */}
+      {gameOverInfo && showGameOverModal && (
         <GameOverModal
           winner={gameOverInfo.winner}
           reason={gameOverInfo.reason}
@@ -617,6 +623,7 @@ export default function GamePage() {
             ? () => navigate(`/analysis/${gameId}`)
             : undefined
           }
+          onClose={() => setShowGameOverModal(false)}
         />
       )}
 

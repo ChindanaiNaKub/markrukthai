@@ -183,6 +183,7 @@ const EN: Record<string, string> = {
   'gameover.by_agreement': 'by mutual agreement',
   'gameover.by_material': 'by insufficient material',
   'gameover.rematch': 'Rematch',
+  'gameover.is_victorious': 'is victorious',
 
   // Local Game
   'local.title': 'Local Game',
@@ -483,6 +484,7 @@ const TH: Record<string, string> = {
   'gameover.by_agreement': 'ตกลงเสมอ',
   'gameover.by_material': 'ตัวหมากไม่เพียงพอ',
   'gameover.rematch': 'แข่งอีกครั้ง',
+  'gameover.is_victorious': 'ชนะ',
 
   // Local Game
   'local.title': 'เล่นในเครื่อง',
