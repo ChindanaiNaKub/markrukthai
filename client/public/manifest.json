@@ -1,7 +1,7 @@
 {
-  "name": "Makruk - Thai Chess Online",
-  "short_name": "Makruk",
-  "description": "Play Makruk (Thai Chess) online with friends for free",
+  "name": "ThaiChess — The Ancient Art of Chess",
+  "short_name": "ThaiChess",
+  "description": "Play ThaiChess online with friends for free",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#161512",

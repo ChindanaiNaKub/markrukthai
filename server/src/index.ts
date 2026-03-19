@@ -432,6 +432,6 @@ app.get('*', (_req, res) => {
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
-  console.log(`Makruk server running on port ${PORT}`);
+  console.log(`ThaiChess server running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });

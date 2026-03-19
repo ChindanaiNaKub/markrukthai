@@ -1,6 +1,6 @@
-# Contributing to Makruk Online
+# Contributing to ThaiChess
 
-Thank you for your interest in making Makruk famous worldwide! Here's how to get started.
+Thank you for your interest in making ThaiChess famous worldwide! Here's how to get started.
 
 ## Getting Started
 
@@ -46,13 +46,13 @@ npm run build
 ## Areas Where Help is Needed
 
 - **Thai language support** — UI translations
-- **Makruk counting rules** — Full implementation of endgame counting
-- **AI opponent** — Basic Makruk engine for solo play
+- **ThaiChess counting rules** — Full implementation of endgame counting
+- **AI opponent** — Basic game engine for solo play
 - **Puzzles** — Tactical puzzles for training
 - **UI/UX improvements** — Especially mobile experience
 - **Accessibility** — Screen reader support, keyboard navigation
 - **Testing** — Unit tests for the game engine
-- **Documentation** — Makruk strategy guides
+- **Documentation** — Strategy guides
 
 ## Code Style
 

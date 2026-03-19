@@ -1,9 +1,9 @@
-# Fly.io configuration for Makruk Thai Chess
+# Fly.io configuration for ThaiChess
 # WARNING: Fly.io no longer has a free tier (as of 2024).
 # This will cost ~$3-5/month. Use Render.com for free hosting instead.
 # Deploy: fly launch --no-deploy && fly deploy
 
-app = 'makruk-thai'
+app = 'thaichess'
 primary_region = 'sin' # Singapore - close to Thailand
 
 [build]
@@ -23,7 +23,7 @@ primary_region = 'sin' # Singapore - close to Thailand
 
 # Persistent volume for SQLite database
 [mounts]
-  source = 'makruk_data'
+  source = 'thaichess_data'
   destination = '/data'
 
 [[vm]]

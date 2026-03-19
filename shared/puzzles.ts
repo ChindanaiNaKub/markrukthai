@@ -1,4 +1,4 @@
-import { Board, Piece, PieceColor, Position } from './types';
+import { Board, Piece, PieceColor, Position, PieceType } from './types';
 
 export interface Puzzle {
   id: number;
@@ -11,7 +11,7 @@ export interface Puzzle {
   solution: { from: Position; to: Position }[];
 }
 
-function p(type: Piece['type'], color: PieceColor): Piece {
+function p(type: PieceType, color: PieceColor): Piece {
   return { type, color };
 }
 
@@ -22,244 +22,52 @@ function emptyBoard(): Board {
 export const PUZZLES: Puzzle[] = [
   {
     id: 1,
-    title: 'Back Rank Mate',
-    description: 'Use your rook to deliver checkmate on the back rank.',
+    title: 'Rua Power',
+    description: 'Checkmate the Black Khun using your Rua (Rook).',
     theme: 'Checkmate',
     difficulty: 'beginner',
     toMove: 'white',
-    board: (() => {
+    board: (function() {
       const b = emptyBoard();
-      b[0][4] = p('K', 'white');
-      b[0][0] = p('R', 'white');
-      b[7][4] = p('K', 'black');
-      b[6][3] = p('P', 'black');
-      b[6][4] = p('P', 'black');
-      b[6][5] = p('P', 'black');
+      b[0][4] = p('K', 'black');
+      b[1][0] = p('K', 'white');
+      b[1][7] = p('R', 'white');
       return b;
     })(),
-    solution: [
-      { from: { row: 0, col: 0 }, to: { row: 7, col: 0 } },
-    ],
+    solution: [{ from: { row: 1, col: 7 }, to: { row: 0, col: 7 } }],
   },
   {
     id: 2,
-    title: 'Knight Fork',
-    description: 'Find the knight fork to win material.',
-    theme: 'Fork',
+    title: 'Double Met Mate',
+    description: 'Two Met (Queens) can be deadly. Find the mate.',
+    theme: 'Checkmate',
     difficulty: 'beginner',
     toMove: 'white',
-    board: (() => {
+    board: (function() {
       const b = emptyBoard();
-      b[0][4] = p('K', 'white');
-      b[2][2] = p('N', 'white');
-      b[7][4] = p('K', 'black');
-      b[5][3] = p('R', 'black');
+      b[0][3] = p('K', 'black');
+      b[2][3] = p('K', 'white');
+      b[1][2] = p('M', 'white');
+      b[2][4] = p('M', 'white');
       return b;
     })(),
-    solution: [
-      { from: { row: 2, col: 2 }, to: { row: 4, col: 3 } },
-    ],
-  },
-  {
-    id: 3,
-    title: 'Rook Skewer',
-    description: 'Use the rook to skewer the king and win the piece behind it.',
-    theme: 'Skewer',
-    difficulty: 'beginner',
-    toMove: 'white',
-    board: (() => {
-      const b = emptyBoard();
-      b[0][0] = p('K', 'white');
-      b[3][0] = p('R', 'white');
-      b[5][4] = p('K', 'black');
-      b[5][7] = p('R', 'black');
-      return b;
-    })(),
-    solution: [
-      { from: { row: 3, col: 0 }, to: { row: 5, col: 0 } },
-    ],
-  },
-  {
-    id: 4,
-    title: 'Promote and Win',
-    description: 'Push the pawn to promotion and gain a decisive advantage.',
-    theme: 'Promotion',
-    difficulty: 'beginner',
-    toMove: 'white',
-    board: (() => {
-      const b = emptyBoard();
-      b[0][0] = p('K', 'white');
-      b[4][3] = p('P', 'white');
-      b[7][7] = p('K', 'black');
-      return b;
-    })(),
-    solution: [
-      { from: { row: 4, col: 3 }, to: { row: 5, col: 3 } },
-    ],
+    solution: [{ from: { row: 2, col: 4 }, to: { row: 1, col: 3 } }],
   },
   {
     id: 5,
-    title: 'Double Rook Mate',
-    description: 'Coordinate your two rooks to deliver checkmate.',
-    theme: 'Checkmate',
-    difficulty: 'intermediate',
+    title: 'Bia Promotion',
+    description: 'Promote your Bia (Pawn) to a Met to win.',
+    theme: 'Promotion',
+    difficulty: 'beginner',
     toMove: 'white',
-    board: (() => {
+    board: (function() {
       const b = emptyBoard();
-      b[0][4] = p('K', 'white');
-      b[5][0] = p('R', 'white');
-      b[6][7] = p('R', 'white');
-      b[7][4] = p('K', 'black');
+      b[0][5] = p('K', 'black');
+      b[2][5] = p('K', 'white');
+      b[5][4] = p('P', 'white');
       return b;
     })(),
-    solution: [
-      { from: { row: 6, col: 7 }, to: { row: 7, col: 7 } },
-    ],
-  },
-  {
-    id: 6,
-    title: 'Knight Checkmate',
-    description: 'Use the knight and rook together to deliver checkmate.',
-    theme: 'Checkmate',
-    difficulty: 'intermediate',
-    toMove: 'white',
-    board: (() => {
-      const b = emptyBoard();
-      b[0][0] = p('K', 'white');
-      b[4][5] = p('N', 'white');
-      b[5][0] = p('R', 'white');
-      b[7][7] = p('K', 'black');
-      b[6][7] = p('P', 'black');
-      b[7][6] = p('P', 'black');
-      return b;
-    })(),
-    solution: [
-      { from: { row: 4, col: 5 }, to: { row: 6, col: 6 } },
-    ],
-  },
-  {
-    id: 7,
-    title: 'Win the Exchange',
-    description: 'Find the tactic to win the opponent\'s rook.',
-    theme: 'Tactic',
-    difficulty: 'intermediate',
-    toMove: 'white',
-    board: (() => {
-      const b = emptyBoard();
-      b[0][4] = p('K', 'white');
-      b[0][0] = p('R', 'white');
-      b[3][3] = p('N', 'white');
-      b[7][4] = p('K', 'black');
-      b[5][2] = p('R', 'black');
-      b[5][5] = p('S', 'black');
-      return b;
-    })(),
-    solution: [
-      { from: { row: 3, col: 3 }, to: { row: 5, col: 2 } },
-    ],
-  },
-  {
-    id: 8,
-    title: 'Discovered Attack',
-    description: 'Move one piece to reveal an attack from the piece behind it.',
-    theme: 'Discovery',
-    difficulty: 'intermediate',
-    toMove: 'white',
-    board: (() => {
-      const b = emptyBoard();
-      b[0][4] = p('K', 'white');
-      b[3][4] = p('R', 'white');
-      b[3][3] = p('S', 'white');
-      b[7][4] = p('K', 'black');
-      b[5][2] = p('M', 'black');
-      return b;
-    })(),
-    solution: [
-      { from: { row: 3, col: 3 }, to: { row: 4, col: 2 } },
-    ],
-  },
-  {
-    id: 9,
-    title: 'Smothered Mate',
-    description: 'The opponent\'s own pieces block their king\'s escape. Find the mate!',
-    theme: 'Checkmate',
-    difficulty: 'advanced',
-    toMove: 'white',
-    board: (() => {
-      const b = emptyBoard();
-      b[0][4] = p('K', 'white');
-      b[4][5] = p('N', 'white');
-      b[7][7] = p('K', 'black');
-      b[7][6] = p('R', 'black');
-      b[6][7] = p('R', 'black');
-      return b;
-    })(),
-    solution: [
-      { from: { row: 4, col: 5 }, to: { row: 6, col: 6 } },
-    ],
-  },
-  {
-    id: 10,
-    title: 'Queen Trap',
-    description: 'Trap the opponent\'s met (queen) with a clever move.',
-    theme: 'Tactic',
-    difficulty: 'advanced',
-    toMove: 'white',
-    board: (() => {
-      const b = emptyBoard();
-      b[0][4] = p('K', 'white');
-      b[2][1] = p('N', 'white');
-      b[3][3] = p('S', 'white');
-      b[7][4] = p('K', 'black');
-      b[4][2] = p('M', 'black');
-      b[6][0] = p('R', 'black');
-      return b;
-    })(),
-    solution: [
-      { from: { row: 3, col: 3 }, to: { row: 4, col: 3 } },
-    ],
-  },
-  {
-    id: 11,
-    title: 'Rook Endgame',
-    description: 'Find the winning move in this rook endgame.',
-    theme: 'Endgame',
-    difficulty: 'advanced',
-    toMove: 'white',
-    board: (() => {
-      const b = emptyBoard();
-      b[1][4] = p('K', 'white');
-      b[0][0] = p('R', 'white');
-      b[4][3] = p('P', 'white');
-      b[6][4] = p('K', 'black');
-      b[7][7] = p('R', 'black');
-      return b;
-    })(),
-    solution: [
-      { from: { row: 4, col: 3 }, to: { row: 5, col: 3 } },
-    ],
-  },
-  {
-    id: 12,
-    title: 'Sacrifice for Mate',
-    description: 'Sacrifice a piece to force checkmate.',
-    theme: 'Sacrifice',
-    difficulty: 'advanced',
-    toMove: 'white',
-    board: (() => {
-      const b = emptyBoard();
-      b[0][4] = p('K', 'white');
-      b[5][0] = p('R', 'white');
-      b[3][6] = p('R', 'white');
-      b[7][6] = p('K', 'black');
-      b[6][5] = p('P', 'black');
-      b[6][6] = p('P', 'black');
-      b[6][7] = p('P', 'black');
-      return b;
-    })(),
-    solution: [
-      { from: { row: 3, col: 6 }, to: { row: 6, col: 6 } },
-    ],
+    solution: [{ from: { row: 5, col: 4 }, to: { row: 6, col: 4 } }],
   },
 ];
 

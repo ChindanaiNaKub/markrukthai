@@ -1,7 +1,7 @@
 # Render Blueprint: https://render.com/docs/blueprint-spec
 services:
   - type: web
-    name: makruk-thai-chess
+    name: thaichess
     runtime: node
     plan: free
     rootDir: .
@@ -16,7 +16,7 @@ services:
     # SQLite: default DATA_DIR is ./data at repo root — ephemeral on free web (resets on redeploy).
     # For persistent DB, add a disk in the Render dashboard and set DATA_DIR to the mount path, e.g.:
     # disk:
-    #   name: makruk-data
-    #   mountPath: /var/makruk-data
+    #   name: thaichess-data
+    #   mountPath: /var/thaichess-data
     #   sizeGB: 1
-    # Then add env: DATA_DIR=/var/makruk-data
+    # Then add env: DATA_DIR=/var/thaichess-data

@@ -11,7 +11,7 @@ interface I18nContextType {
 const I18nContext = createContext<I18nContextType | null>(null);
 
 function detectLanguage(): Language {
-  const saved = localStorage.getItem('makruk-lang');
+  const saved = localStorage.getItem('thaichess-lang');
   if (saved === 'th' || saved === 'en') return saved;
 
   const browserLang = navigator.language || (navigator as any).userLanguage || '';
@@ -22,8 +22,8 @@ function detectLanguage(): Language {
 
 const EN: Record<string, string> = {
   // Common
-  'app.name': 'Makruk',
-  'app.tagline': 'Thai Chess Online',
+  'app.name': 'ThaiChess',
+  'app.tagline': 'The Ancient Art of Chess',
   'nav.play': 'Play',
   'nav.puzzles': 'Puzzles',
   'nav.games': 'Games',
@@ -39,11 +39,11 @@ const EN: Record<string, string> = {
   'common.close': 'Close',
   'common.retry': 'Retry',
   'common.new_game': 'New Game',
-  'footer.tagline': 'Makruk Online — Free & Open Source',
+  'footer.tagline': 'ThaiChess — Free & Open Source',
   'footer.inspired': 'Inspired by',
 
   // Home Page
-  'home.hero_title': 'Play Makruk Online',
+  'home.hero_title': 'Play ThaiChess Online',
   'home.hero_desc': 'The ancient Thai game of chess. Play online, offline with bots, or sharpen your skills with puzzles.',
   'home.quick_play': 'Quick Play',
   'home.quick_play_desc': 'Find an opponent instantly — no link sharing needed',
@@ -65,8 +65,8 @@ const EN: Record<string, string> = {
   'home.join_title': 'Join a Game',
   'home.join_placeholder': 'Enter game code...',
   'home.join': 'Join',
-  'home.rules_title': 'How to Play Makruk',
-  'home.rules_intro': 'Makruk (Thai Chess) is the traditional chess of Thailand, closely related to the original Indian game of chess.',
+  'home.rules_title': 'How to Play ThaiChess',
+  'home.rules_intro': 'ThaiChess (Thai: Makruk) is the traditional chess of Thailand, closely related to the original Indian game of chess.',
   'home.rules_pieces': 'Pieces:',
   'home.rules_special': 'Special Rules:',
   'home.piece_king': 'Khun (King) – Moves 1 square in any direction',
@@ -109,8 +109,8 @@ const EN: Record<string, string> = {
   'bot.vs_bot': 'vs Bot',
 
   // Puzzles
-  'puzzle.title': 'Makruk Puzzles',
-  'puzzle.desc': 'Sharpen your Makruk skills with tactical puzzles. Find the best move!',
+  'puzzle.title': 'ThaiChess Puzzles',
+  'puzzle.desc': 'Sharpen your ThaiChess skills with tactical puzzles. Find the best move!',
   'puzzle.completed': '{done}/{total} completed',
   'puzzle.all': 'All',
   'puzzle.beginner': 'Beginner',
@@ -219,9 +219,9 @@ const EN: Record<string, string> = {
   'conn.disconnected': 'Disconnected — trying to reconnect...',
 
   // About Page
-  'about.title': 'About Makruk Online',
-  'about.intro1': 'Makruk Online is a <strong>free, open-source</strong> platform for playing Makruk (Thai Chess) with anyone in the world. No registration, no ads, no paywall — just pure Thai chess.',
-  'about.intro2': 'Our mission is to make <strong>Makruk famous worldwide</strong>. Thai chess is one of the oldest board games in the world, closer to the original Indian chess (Chaturanga) than modern Western chess. It deserves a world-class online platform, just like chess has Lichess.',
+  'about.title': 'About ThaiChess',
+  'about.intro1': 'ThaiChess is a <strong>free, open-source</strong> platform for playing ThaiChess (Makruk) with anyone in the world. No registration, no ads, no paywall — just pure Thai chess.',
+  'about.intro2': 'Our mission is to make <strong>ThaiChess famous worldwide</strong>. Thai chess is one of the oldest board games in the world, closer to the original Indian chess (Chaturanga) than modern Western chess. It deserves a world-class online platform, just like chess has Lichess.',
   'about.intro3': 'Inspired by <a href="https://lichess.org" target="_blank" rel="noopener" class="text-primary hover:text-primary-light underline">Lichess</a>, we believe great gaming platforms should be free for everyone.',
   'about.stats_title': 'Platform Stats',
   'about.games_played': 'Games Played',
@@ -229,7 +229,7 @@ const EN: Record<string, string> = {
   'about.white_wins': 'White Wins',
   'about.black_wins': 'Black Wins',
   'about.support_title': 'Support the Project',
-  'about.support_desc': 'Makruk Online runs on donations and community support. If you enjoy playing, consider helping us keep the servers running:',
+  'about.support_desc': 'ThaiChess runs on donations and community support. If you enjoy playing, consider helping us keep the servers running:',
   'about.star': 'Star us on GitHub',
   'about.star_desc': ' — helps others discover the project',
   'about.share': 'Share with friends',
@@ -238,14 +238,14 @@ const EN: Record<string, string> = {
   'about.contribute_desc': ' — PRs are welcome! See our GitHub repo',
   'about.report': 'Report bugs & suggest features',
   'about.report_desc': ' — open an issue on GitHub',
-  'about.what_title': 'What is Makruk?',
-  'about.what1': '<strong>Makruk (หมากรุก)</strong> is the traditional chess of Thailand. It evolved from the ancient Indian game Chaturanga and has been played in Thailand for centuries.',
-  'about.what2': 'Unlike Western chess, Makruk retains many features of the original game — the queen (Met) is weak, the bishop (Khon) moves differently, and pawns start on the third rank. This creates a game that is deeply strategic and uniquely beautiful.',
-  'about.what3': "Makruk is widely played in Thailand and Cambodia (where it's called Ouk Chatrang). It is recognized by the World Chess Federation and has international tournaments.",
-  'about.what4': 'We believe Makruk deserves the same global recognition as chess. Help us spread the word!',
+  'about.what_title': 'What is ThaiChess?',
+  'about.what1': '<strong>ThaiChess (หมากรุก)</strong> is the traditional chess of Thailand. It evolved from the ancient Indian game Chaturanga and has been played in Thailand for centuries.',
+  'about.what2': 'Unlike Western chess, ThaiChess retains many features of the original game — the queen (Met) is weak, the bishop (Khon) moves differently, and pawns start on the third rank. This creates a game that is deeply strategic and uniquely beautiful.',
+  'about.what3': "ThaiChess is widely played in Thailand and Cambodia (where it's called Ouk Chatrang). It is recognized by the World Chess Federation and has international tournaments.",
+  'about.what4': 'We believe ThaiChess deserves the same global recognition as chess. Help us spread the word!',
   'about.opensource_title': 'Open Source',
-  'about.opensource_desc': 'Makruk Online is 100% open source under the MIT license. The entire codebase is available on GitHub.',
-  'about.footer': 'Makruk Online — Free & Open Source — Made with love for Thai Chess',
+  'about.opensource_desc': 'ThaiChess is 100% open source under the MIT license. The entire codebase is available on GitHub.',
+  'about.footer': 'ThaiChess — Free & Open Source — Made with love for Thai Chess',
 
   // Games Page
   'games.title': 'Recent Games',
@@ -278,7 +278,7 @@ const EN: Record<string, string> = {
   'feedback.placeholder_feature': 'What feature would you like?',
   'feedback.placeholder_other': 'Tell us anything...',
   'feedback.thanks': 'Thank you!',
-  'feedback.thanks_desc': 'Your feedback helps improve Makruk Online.',
+  'feedback.thanks_desc': 'Your feedback helps improve ThaiChess Online.',
   'feedback.error': 'Failed to send. Please try again.',
 
   // Feedback Messages Page
@@ -347,11 +347,11 @@ const TH: Record<string, string> = {
   'common.close': 'ปิด',
   'common.retry': 'ลองใหม่',
   'common.new_game': 'เกมใหม่',
-  'footer.tagline': 'หมากรุกออนไลน์ — ฟรีและโอเพนซอร์ส',
+  'footer.tagline': 'ThaiChess — ฟรีและโอเพนซอร์ส',
   'footer.inspired': 'ได้แรงบันดาลใจจาก',
 
   // Home Page
-  'home.hero_title': 'เล่นหมากรุกออนไลน์',
+  'home.hero_title': 'เล่น ThaiChess ออนไลน์',
   'home.hero_desc': 'เกมหมากรุกไทยโบราณ เล่นออนไลน์ เล่นกับบอท หรือฝึกทักษะด้วยปริศนา',
   'home.quick_play': 'เล่นด่วน',
   'home.quick_play_desc': 'หาคู่แข่งทันที — ไม่ต้องแชร์ลิงก์',
@@ -527,9 +527,9 @@ const TH: Record<string, string> = {
   'conn.disconnected': 'หลุดการเชื่อมต่อ — กำลังเชื่อมต่อใหม่...',
 
   // About Page
-  'about.title': 'เกี่ยวกับหมากรุกออนไลน์',
-  'about.intro1': 'หมากรุกออนไลน์เป็นแพลตฟอร์ม<strong>ฟรีและโอเพนซอร์ส</strong>สำหรับเล่นหมากรุกไทยกับทุกคนในโลก ไม่ต้องสมัคร ไม่มีโฆษณา ไม่มีค่าใช้จ่าย — แค่หมากรุกไทยบริสุทธิ์',
-  'about.intro2': 'พันธกิจของเราคือการทำให้<strong>หมากรุกเป็นที่รู้จักทั่วโลก</strong> หมากรุกไทยเป็นหนึ่งในเกมกระดานที่เก่าแก่ที่สุดในโลก ใกล้เคียงกับจตุรงค์ของอินเดียมากกว่าหมากรุกสากล สมควรมีแพลตฟอร์มออนไลน์ระดับโลก',
+  'about.title': 'เกี่ยวกับหมากรุกไทย',
+  'about.intro1': 'หมากรุกไทยเป็นแพลตฟอร์ม<strong>ฟรีและโอเพนซอร์ส</strong>สำหรับเล่นหมากรุกไทยกับทุกคนในโลก ไม่ต้องสมัคร ไม่มีโฆษณา ไม่มีค่าใช้จ่าย — แค่หมากรุกไทยบริสุทธิ์',
+  'about.intro2': 'พันธกิจของเราคือการทำให้<strong>หมากรุกไทยเป็นที่รู้จักทั่วโลก</strong> หมากรุกไทยเป็นหนึ่งในเกมกระดานที่เก่าแก่ที่สุดในโลก ใกล้เคียงกับจตุรงค์ของอินเดียมากกว่าหมากรุกสากล สมควรมีแพลตฟอร์มออนไลน์ระดับโลก',
   'about.intro3': 'ได้แรงบันดาลใจจาก <a href="https://lichess.org" target="_blank" rel="noopener" class="text-primary hover:text-primary-light underline">Lichess</a> เราเชื่อว่าแพลตฟอร์มเกมดีๆ ควรฟรีสำหรับทุกคน',
   'about.stats_title': 'สถิติแพลตฟอร์ม',
   'about.games_played': 'เกมที่เล่น',
@@ -537,7 +537,7 @@ const TH: Record<string, string> = {
   'about.white_wins': 'ฝั่งขาวชนะ',
   'about.black_wins': 'ฝั่งดำชนะ',
   'about.support_title': 'สนับสนุนโปรเจกต์',
-  'about.support_desc': 'หมากรุกออนไลน์ดำเนินการโดยชุมชน หากคุณชอบเล่น ช่วยเราให้เซิร์ฟเวอร์ทำงานต่อไป:',
+  'about.support_desc': 'หมากรุกไทยดำเนินการโดยชุมชน หากคุณชอบเล่น ช่วยเราให้เซิร์ฟเวอร์ทำงานต่อไป:',
   'about.star': 'กดดาวบน GitHub',
   'about.star_desc': ' — ช่วยให้คนอื่นค้นพบโปรเจกต์',
   'about.share': 'แชร์ให้เพื่อน',
@@ -546,14 +546,14 @@ const TH: Record<string, string> = {
   'about.contribute_desc': ' — ยินดีรับ PR! ดู GitHub repo',
   'about.report': 'แจ้งบั๊กและเสนอฟีเจอร์',
   'about.report_desc': ' — เปิด issue บน GitHub',
-  'about.what_title': 'หมากรุกคืออะไร?',
-  'about.what1': '<strong>หมากรุก (Makruk)</strong> เป็นหมากรุกดั้งเดิมของไทย พัฒนามาจากจตุรงค์ของอินเดียโบราณ และเล่นกันในไทยมาหลายศตวรรษ',
+  'about.what_title': 'หมากรุกไทยคืออะไร?',
+  'about.what1': '<strong>หมากรุกไทย (Makruk)</strong> เป็นหมากรุกดั้งเดิมของไทย พัฒนามาจากจตุรงค์ของอินเดียโบราณ และเล่นกันในไทยมาหลายศตวรรษ',
   'about.what2': 'ต่างจากหมากรุกสากล หมากรุกไทยยังคงรักษาลักษณะดั้งเดิมไว้ — เม็ด (ควีน) อ่อนแอ โคน (บิชอป) เดินต่างออกไป และเบี้ยเริ่มที่แถวที่สาม ทำให้เกมมีกลยุทธ์ลึกซึ้งและสวยงามเป็นเอกลักษณ์',
-  'about.what3': 'หมากรุกเป็นที่นิยมในไทยและกัมพูชา (เรียกว่า อุกจตุรงค์) ได้รับการยอมรับจากสหพันธ์หมากรุกโลกและมีการแข่งขันระดับนานาชาติ',
-  'about.what4': 'เราเชื่อว่าหมากรุกสมควรได้รับการยอมรับระดับโลกเทียบเท่าหมากรุกสากล ช่วยเราเผยแพร่!',
+  'about.what3': 'หมากรุกไทยเป็นที่นิยมในไทยและกัมพูชา (เรียกว่า อุกจตุรงค์) ได้รับการยอมรับจากสหพันธ์หมากรุกโลกและมีการแข่งขันระดับนานาชาติ',
+  'about.what4': 'เราเชื่อว่าหมากรุกไทยสมควรได้รับการยอมรับระดับโลกเทียบเท่าหมากรุกสากล ช่วยเราเผยแพร่!',
   'about.opensource_title': 'โอเพนซอร์ส',
-  'about.opensource_desc': 'หมากรุกออนไลน์เป็นโอเพนซอร์ส 100% ภายใต้ MIT license โค้ดทั้งหมดอยู่บน GitHub',
-  'about.footer': 'หมากรุกออนไลน์ — ฟรีและโอเพนซอร์ส — สร้างด้วยรักเพื่อหมากรุกไทย',
+  'about.opensource_desc': 'หมากรุกไทยเป็นโอเพนซอร์ส 100% ภายใต้ MIT license โค้ดทั้งหมดอยู่บน GitHub',
+  'about.footer': 'หมากรุกไทย — ฟรีและโอเพนซอร์ส — สร้างด้วยรักเพื่อหมากรุกไทย',
 
   // Games Page
   'games.title': 'เกมล่าสุด',
@@ -586,7 +586,7 @@ const TH: Record<string, string> = {
   'feedback.placeholder_feature': 'คุณอยากได้ฟีเจอร์อะไร?',
   'feedback.placeholder_other': 'บอกเราได้เลย...',
   'feedback.thanks': 'ขอบคุณ!',
-  'feedback.thanks_desc': 'ความคิดเห็นของคุณช่วยพัฒนาหมากรุกออนไลน์',
+  'feedback.thanks_desc': 'ความคิดเห็นของคุณช่วยพัฒนา ThaiChess ออนไลน์',
   'feedback.error': 'ส่งไม่สำเร็จ กรุณาลองใหม่',
 
   // Feedback Messages Page
@@ -643,7 +643,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const setLang = useCallback((newLang: Language) => {
     setLangState(newLang);
-    localStorage.setItem('makruk-lang', newLang);
+    localStorage.setItem('thaichess-lang', newLang);
     document.documentElement.lang = newLang;
   }, []);
 

@@ -4,7 +4,7 @@ import type { Move, Board, PieceColor, TimeControl } from '../../shared/types';
 
 // Compiled to server/dist/server/src — repo data/ is four levels up
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '../../../../data');
-const DB_PATH = path.join(DATA_DIR, 'makruk.db');
+const DB_PATH = path.join(DATA_DIR, 'thaichess.db');
 
 let db: Database.Database;
 

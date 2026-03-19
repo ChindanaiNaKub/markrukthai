@@ -1,8 +1,8 @@
 {
-  "name": "makruk-thai-chess",
+  "name": "thaichess",
   "version": "1.0.0",
   "private": true,
-  "description": "Free Makruk (Thai Chess) platform - play with friends online",
+  "description": "Free ThaiChess platform - play with friends online",
   "scripts": {
     "render-build": "npm install --include=dev && npm run build",
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",

@@ -99,7 +99,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* What is Makruk */}
+        {/* What is ThaiChess */}
         <section className="mb-8 sm:mb-10">
           <h3 className="text-lg sm:text-xl font-bold text-text-bright mb-4">{t('about.what_title')}</h3>
           <div className="text-text leading-relaxed space-y-3 text-sm sm:text-base [&_strong]:text-text-bright [&_.text-primary]:text-primary">

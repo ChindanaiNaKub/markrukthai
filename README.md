@@ -1,8 +1,8 @@
-# Makruk - Thai Chess Online ♟
+# ThaiChess — The Ancient Art of Chess ♟
 
-A free, open-source Makruk (Thai Chess) platform inspired by [Lichess](https://lichess.org). Play with friends online — no registration required.
+A free, open-source ThaiChess platform inspired by [Lichess](https://lichess.org). Play with friends online — no registration required.
 
-> **Our mission:** Make Makruk (หมากรุก) famous worldwide. Thai chess is one of the oldest board games in existence — it deserves a world-class online platform.
+> **Our mission:** Make ThaiChess famous worldwide. Thai chess is one of the oldest board games in existence — it deserves a world-class online platform.
 
 ## Features
 
@@ -10,7 +10,7 @@ A free, open-source Makruk (Thai Chess) platform inspired by [Lichess](https://l
 - **Real-time Multiplayer** — WebSocket-based instant move updates
 - **Local Play** — Practice on the same screen at `/local`
 - **Time Controls** — Bullet, Blitz, Rapid, and Classical presets
-- **Full Makruk Rules** — Complete Thai Chess engine with all 6 piece types
+- **Full ThaiChess Rules** — Complete game engine with all 6 piece types
 - **Game History** — All completed games saved and browsable at `/games`
 - **Beautiful UI** — Lichess-inspired dark theme with custom SVG pieces
 - **Drag & Drop** — Move pieces by dragging or clicking
@@ -28,9 +28,9 @@ npm run dev
 
 This starts both the server (port 3000) and client (port 5173). Open http://localhost:5173 to play.
 
-## Makruk Rules
+## ThaiChess Rules
 
-Makruk (หมากรุก) is the traditional chess of Thailand, closely related to the ancient Indian game Chaturanga.
+ThaiChess (หมากรุก) is the traditional chess of Thailand, closely related to the ancient Indian game Chaturanga.
 
 | Piece | Thai Name | Movement |
 |-------|-----------|----------|
@@ -54,14 +54,14 @@ Makruk (หมากรุก) is the traditional chess of Thailand, closely rel
 | Frontend | React 19, TypeScript, Vite 6, Tailwind CSS 4 |
 | Backend | Node.js, Express, Socket.IO 4 |
 | Database | SQLite (via better-sqlite3) |
-| Game Engine | Custom TypeScript Makruk engine |
+| Game Engine | Custom TypeScript ThaiChess engine |
 
 ## Project Structure
 
 ```
 ├── shared/            # Shared types and game engine
 │   ├── types.ts       # TypeScript type definitions
-│   └── engine.ts      # Makruk game engine
+│   └── engine.ts      # ThaiChess game engine
 ├── server/            # Backend server
 │   └── src/
 │       ├── index.ts         # Express + Socket.IO server
@@ -77,7 +77,7 @@ Makruk (หมากรุก) is the traditional chess of Thailand, closely rel
 
 ## Contributing
 
-We'd love your help making Makruk famous! See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+We'd love your help making ThaiChess famous! See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 1. **Star this repo** — helps others discover it
 2. **Play and share** — invite your friends
@@ -88,14 +88,14 @@ We'd love your help making Makruk famous! See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Roadmap
 
-- [ ] Thai language support (ภาษาไทย)
+- [x] Thai language support (ภาษาไทย)
 - [ ] Player accounts (optional, anonymous play always available)
 - [ ] ELO rating system
 - [ ] Puzzles and tactics trainer
 - [ ] Game analysis
-- [ ] AI opponent
+- [x] AI opponent
 - [ ] Tournaments
-- [ ] Makruk counting rules (full implementation)
+- [ ] ThaiChess counting rules (full implementation)
 - [ ] Spectator mode improvements
 
 ## License
