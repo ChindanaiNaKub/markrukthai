@@ -1,7 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Position, PieceColor, Move, GameState } from '@shared/types';
-import { getLegalMoves, makeMove, createInitialGameState, createInitialBoard, getBoardAtMove } from '@shared/engine';
+import {
+  getLegalMoves, makeMove, createInitialGameState, createInitialBoard, getBoardAtMove,
+  startCounting, stopCounting,
+} from '@shared/engine';
 import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound } from '../lib/sounds';
 import { useTranslation } from '../lib/i18n';
 import { BoardErrorBoundary } from './BoardErrorBoundary';
@@ -69,24 +72,24 @@ export default function LocalGame() {
         if (prev.gameOver) return prev;
 
         const now = Date.now();
-        const elapsed = now - prev.lastMoveTime;
-        if (elapsed <= 0) return prev;
+          const elapsed = now - prev.lastMoveTime;
+          if (elapsed <= 0) return prev;
 
-        if (prev.turn === 'white') {
-          const whiteTime = Math.max(0, prev.whiteTime - elapsed);
-          if (whiteTime === 0) {
-            timeoutWinner = 'black';
-            return { ...prev, whiteTime: 0, lastMoveTime: now, gameOver: true, winner: 'black' };
+          if (prev.turn === 'white') {
+            const whiteTime = Math.max(0, prev.whiteTime - elapsed);
+            if (whiteTime === 0) {
+              timeoutWinner = 'black';
+              return { ...prev, whiteTime: 0, lastMoveTime: now, gameOver: true, winner: 'black', resultReason: 'timeout', counting: null };
+            }
+            return { ...prev, whiteTime, lastMoveTime: now };
           }
-          return { ...prev, whiteTime, lastMoveTime: now };
-        }
 
-        const blackTime = Math.max(0, prev.blackTime - elapsed);
-        if (blackTime === 0) {
-          timeoutWinner = 'white';
-          return { ...prev, blackTime: 0, lastMoveTime: now, gameOver: true, winner: 'white' };
-        }
-        return { ...prev, blackTime, lastMoveTime: now };
+          const blackTime = Math.max(0, prev.blackTime - elapsed);
+          if (blackTime === 0) {
+            timeoutWinner = 'white';
+            return { ...prev, blackTime: 0, lastMoveTime: now, gameOver: true, winner: 'white', resultReason: 'timeout', counting: null };
+          }
+          return { ...prev, blackTime, lastMoveTime: now };
       });
 
       if (timeoutWinner) {
@@ -116,7 +119,7 @@ export default function LocalGame() {
           else if (lastMove.captured) playCaptureSound();
           else playMoveSound();
           if (newState.gameOver) {
-            const reason = newState.isCheckmate ? 'checkmate' : newState.isStalemate ? 'stalemate' : 'draw';
+            const reason = newState.resultReason ?? 'draw';
             setGameOverInfo({ reason, winner: newState.winner });
             playGameOverSound();
           }
@@ -151,7 +154,7 @@ export default function LocalGame() {
         else if (lastMove.captured) playCaptureSound();
         else playMoveSound();
         if (newState.gameOver) {
-          const reason = newState.isCheckmate ? 'checkmate' : newState.isStalemate ? 'stalemate' : 'draw';
+          const reason = newState.resultReason ?? 'draw';
           setGameOverInfo({ reason, winner: newState.winner });
           playGameOverSound();
         }
@@ -215,6 +218,35 @@ export default function LocalGame() {
 
   const isViewingHistory = viewMoveIndex !== null && viewMoveIndex !== gameState.moveHistory.length - 1;
   const topColor: PieceColor = viewAs === 'white' ? 'black' : 'white';
+  const countingLabel = gameState.counting
+    ? !gameState.counting.active
+      ? t('game.counting_available', {
+        type: t(gameState.counting.type === 'board_honor' ? 'game.counting_board_honor' : 'game.counting_pieces_honor'),
+        color: colorName(gameState.counting.countingColor),
+      })
+      : gameState.counting.finalAttackPending
+      ? t('game.counting_final', {
+        type: t(gameState.counting.type === 'board_honor' ? 'game.counting_board_honor' : 'game.counting_pieces_honor'),
+      })
+      : t('game.counting_status', {
+        type: t(gameState.counting.type === 'board_honor' ? 'game.counting_board_honor' : 'game.counting_pieces_honor'),
+        color: colorName(gameState.counting.countingColor),
+        current: gameState.counting.currentCount,
+        limit: gameState.counting.limit,
+      })
+    : null;
+  const canStartLocalCounting = Boolean(gameState.counting && !gameState.gameOver && !gameState.counting.active && gameState.turn === gameState.counting.countingColor);
+  const canStopLocalCounting = Boolean(gameState.counting && !gameState.gameOver && gameState.counting.active && gameState.turn === gameState.counting.countingColor);
+
+  const handleStartCounting = () => {
+    const newState = startCounting(gameState);
+    if (newState) setGameState(newState);
+  };
+
+  const handleStopCounting = () => {
+    const newState = stopCounting(gameState);
+    if (newState) setGameState(newState);
+  };
 
   return (
     <div className="min-h-screen bg-surface flex flex-col" tabIndex={-1}>
@@ -288,6 +320,31 @@ export default function LocalGame() {
           </div>
 
           <div className="flex flex-col gap-3 lg:w-72 w-full max-w-[720px]">
+            {!gameState.gameOver && countingLabel && (
+              <div className="rounded-lg px-4 py-3 bg-accent/10 text-accent border border-accent/30">
+                <div className="text-xs uppercase tracking-wide font-semibold mb-1">
+                  {t('game.counting_title')}
+                </div>
+                <div className="text-sm">{countingLabel}</div>
+                {canStartLocalCounting && (
+                  <button
+                    onClick={handleStartCounting}
+                    className="mt-3 w-full py-2 px-3 bg-accent/20 hover:bg-accent/30 text-accent text-sm rounded-lg border border-accent/30 transition-colors"
+                  >
+                    {t('game.counting_start')}
+                  </button>
+                )}
+                {canStopLocalCounting && (
+                  <button
+                    onClick={handleStopCounting}
+                    className="mt-3 w-full py-2 px-3 bg-surface-alt hover:bg-surface-hover text-text text-sm rounded-lg border border-surface-hover transition-colors"
+                  >
+                    {t('game.counting_stop')}
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Inline Game Over Panel (Lichess-style) */}
             {gameOverInfo && (
               <GameOverPanel

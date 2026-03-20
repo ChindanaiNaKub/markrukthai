@@ -234,6 +234,14 @@ export default function GamePage() {
     socket.emit('offer_draw');
   };
 
+  const handleStartCounting = () => {
+    socket.emit('start_counting');
+  };
+
+  const handleStopCounting = () => {
+    socket.emit('stop_counting');
+  };
+
   const handleRespondDraw = (accept: boolean) => {
     socket.emit('respond_draw', { accept });
     setDrawOffered(false);
@@ -377,6 +385,37 @@ export default function GamePage() {
 
   const opponentColor: PieceColor = playerColor === 'white' ? 'black' : 'white';
   const isViewingHistory = viewMoveIndex !== null && viewMoveIndex !== gameState.moveHistory.length - 1;
+  const countingLabel = gameState.counting
+    ? !gameState.counting.active
+      ? t('game.counting_available', {
+        type: t(gameState.counting.type === 'board_honor' ? 'game.counting_board_honor' : 'game.counting_pieces_honor'),
+        color: t(gameState.counting.countingColor === 'white' ? 'common.white' : 'common.black'),
+      })
+      : gameState.counting.finalAttackPending
+      ? t('game.counting_final', {
+        type: t(gameState.counting.type === 'board_honor' ? 'game.counting_board_honor' : 'game.counting_pieces_honor'),
+      })
+      : t('game.counting_status', {
+        type: t(gameState.counting.type === 'board_honor' ? 'game.counting_board_honor' : 'game.counting_pieces_honor'),
+        color: t(gameState.counting.countingColor === 'white' ? 'common.white' : 'common.black'),
+        current: gameState.counting.currentCount,
+        limit: gameState.counting.limit,
+      })
+    : null;
+  const canStartCounting = Boolean(
+    gameState.counting &&
+    !gameState.gameOver &&
+    !gameState.counting.active &&
+    playerColor === gameState.counting.countingColor &&
+    gameState.turn === playerColor,
+  );
+  const canStopCounting = Boolean(
+    gameState.counting &&
+    !gameState.gameOver &&
+    gameState.counting.active &&
+    playerColor === gameState.counting.countingColor &&
+    gameState.turn === playerColor,
+  );
 
   return (
     <div ref={containerRef} className="min-h-screen bg-surface flex flex-col" tabIndex={-1}>
@@ -509,6 +548,31 @@ export default function GamePage() {
                 }
               `}>
                 {isMyTurn ? t('game.your_turn') : t('game.opponent_turn')}
+              </div>
+            )}
+
+            {!gameState.gameOver && countingLabel && (
+              <div className="rounded-lg px-4 py-3 bg-accent/10 text-accent border border-accent/30">
+                <div className="text-xs uppercase tracking-wide font-semibold mb-1">
+                  {t('game.counting_title')}
+                </div>
+                <div className="text-sm">{countingLabel}</div>
+                {canStartCounting && (
+                  <button
+                    onClick={handleStartCounting}
+                    className="mt-3 w-full py-2 px-3 bg-accent/20 hover:bg-accent/30 text-accent text-sm rounded-lg border border-accent/30 transition-colors"
+                  >
+                    {t('game.counting_start')}
+                  </button>
+                )}
+                {canStopCounting && (
+                  <button
+                    onClick={handleStopCounting}
+                    className="mt-3 w-full py-2 px-3 bg-surface-alt hover:bg-surface-hover text-text text-sm rounded-lg border border-surface-hover transition-colors"
+                  >
+                    {t('game.counting_stop')}
+                  </button>
+                )}
               </div>
             )}
 

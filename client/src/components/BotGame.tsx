@@ -1,7 +1,10 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Position, PieceColor, Move, GameState } from '@shared/types';
-import { getLegalMoves, makeMove, createInitialGameState, createInitialBoard, getBoardAtMove } from '@shared/engine';
+import {
+  getLegalMoves, makeMove, createInitialGameState, createInitialBoard, getBoardAtMove,
+  startCounting, stopCounting,
+} from '@shared/engine';
 import { getBotMove, BotDifficulty } from '@shared/botEngine';
 import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound } from '../lib/sounds';
 import { useTranslation } from '../lib/i18n';
@@ -50,6 +53,14 @@ export default function BotGame() {
   useEffect(() => {
     if (!gameStarted || gameState.gameOver || isPlayerTurn) return;
 
+    if (gameState.counting && !gameState.counting.active && gameState.counting.countingColor === botColor) {
+      const countedState = startCounting(gameState);
+      if (countedState) {
+        setGameState(countedState);
+        return;
+      }
+    }
+
     setBotThinking(true);
     const delay = difficulty === 'easy' ? 300 : difficulty === 'medium' ? 600 : 800;
 
@@ -66,7 +77,7 @@ export default function BotGame() {
           else playMoveSound();
 
           if (newState.gameOver) {
-            const reason = newState.isCheckmate ? 'checkmate' : newState.isStalemate ? 'stalemate' : 'draw';
+            const reason = newState.resultReason ?? 'draw';
             setGameOverInfo({ reason, winner: newState.winner });
             setPremove(null);
             playGameOverSound();
@@ -98,7 +109,7 @@ export default function BotGame() {
           const whiteTime = Math.max(0, prev.whiteTime - elapsed);
           if (whiteTime === 0) {
             timeoutWinner = 'black';
-            return { ...prev, whiteTime: 0, lastMoveTime: now, gameOver: true, winner: 'black' };
+            return { ...prev, whiteTime: 0, lastMoveTime: now, gameOver: true, winner: 'black', resultReason: 'timeout', counting: null };
           }
           return { ...prev, whiteTime, lastMoveTime: now };
         }
@@ -106,7 +117,7 @@ export default function BotGame() {
         const blackTime = Math.max(0, prev.blackTime - elapsed);
         if (blackTime === 0) {
           timeoutWinner = 'white';
-          return { ...prev, blackTime: 0, lastMoveTime: now, gameOver: true, winner: 'white' };
+          return { ...prev, blackTime: 0, lastMoveTime: now, gameOver: true, winner: 'white', resultReason: 'timeout', counting: null };
         }
         return { ...prev, blackTime, lastMoveTime: now };
       });
@@ -140,7 +151,7 @@ export default function BotGame() {
           else if (lastMove.captured) playCaptureSound();
           else playMoveSound();
           if (newState.gameOver) {
-            const reason = newState.isCheckmate ? 'checkmate' : newState.isStalemate ? 'stalemate' : 'draw';
+            const reason = newState.resultReason ?? 'draw';
             setGameOverInfo({ reason, winner: newState.winner });
             playGameOverSound();
           }
@@ -226,7 +237,7 @@ export default function BotGame() {
           else if (lastMove.captured) playCaptureSound();
           else playMoveSound();
           if (newState.gameOver) {
-            const reason = newState.isCheckmate ? 'checkmate' : newState.isStalemate ? 'stalemate' : 'draw';
+            const reason = newState.resultReason ?? 'draw';
             setGameOverInfo({ reason, winner: newState.winner });
             playGameOverSound();
           }
@@ -272,7 +283,7 @@ export default function BotGame() {
         else if (lastMove.captured) playCaptureSound();
         else playMoveSound();
         if (newState.gameOver) {
-          const reason = newState.isCheckmate ? 'checkmate' : newState.isStalemate ? 'stalemate' : 'draw';
+          const reason = newState.resultReason ?? 'draw';
           setGameOverInfo({ reason, winner: newState.winner });
           playGameOverSound();
         }
@@ -312,6 +323,8 @@ export default function BotGame() {
       const newState = { ...gameState };
       newState.gameOver = true;
       newState.winner = botColor;
+      newState.resultReason = 'resignation';
+      newState.counting = null;
       setGameState(newState);
       setGameOverInfo({ reason: 'resignation', winner: botColor });
       setPremove(null);
@@ -450,6 +463,36 @@ export default function BotGame() {
     );
   }
 
+  const countingLabel = gameState.counting
+    ? !gameState.counting.active
+      ? t('game.counting_available', {
+        type: t(gameState.counting.type === 'board_honor' ? 'game.counting_board_honor' : 'game.counting_pieces_honor'),
+        color: t(gameState.counting.countingColor === 'white' ? 'common.white' : 'common.black'),
+      })
+      : gameState.counting.finalAttackPending
+      ? t('game.counting_final', {
+        type: t(gameState.counting.type === 'board_honor' ? 'game.counting_board_honor' : 'game.counting_pieces_honor'),
+      })
+      : t('game.counting_status', {
+        type: t(gameState.counting.type === 'board_honor' ? 'game.counting_board_honor' : 'game.counting_pieces_honor'),
+        color: t(gameState.counting.countingColor === 'white' ? 'common.white' : 'common.black'),
+        current: gameState.counting.currentCount,
+        limit: gameState.counting.limit,
+      })
+    : null;
+  const canStartBotCounting = Boolean(gameState.counting && !gameState.gameOver && !gameState.counting.active && isPlayerTurn && playerColor === gameState.counting.countingColor);
+  const canStopBotCounting = Boolean(gameState.counting && !gameState.gameOver && gameState.counting.active && isPlayerTurn && playerColor === gameState.counting.countingColor);
+
+  const handleStartCounting = () => {
+    const newState = startCounting(gameState);
+    if (newState) setGameState(newState);
+  };
+
+  const handleStopCounting = () => {
+    const newState = stopCounting(gameState);
+    if (newState) setGameState(newState);
+  };
+
   return (
     <div className="min-h-screen bg-surface flex flex-col" tabIndex={-1}>
       <Header
@@ -542,6 +585,31 @@ export default function BotGame() {
                 }
               `}>
                 {isPlayerTurn ? t('bot.your_turn') : t('bot.bot_thinking')}
+              </div>
+            )}
+
+            {!gameState.gameOver && countingLabel && (
+              <div className="rounded-lg px-4 py-3 bg-accent/10 text-accent border border-accent/30">
+                <div className="text-xs uppercase tracking-wide font-semibold mb-1">
+                  {t('game.counting_title')}
+                </div>
+                <div className="text-sm">{countingLabel}</div>
+                {canStartBotCounting && (
+                  <button
+                    onClick={handleStartCounting}
+                    className="mt-3 w-full py-2 px-3 bg-accent/20 hover:bg-accent/30 text-accent text-sm rounded-lg border border-accent/30 transition-colors"
+                  >
+                    {t('game.counting_start')}
+                  </button>
+                )}
+                {canStopBotCounting && (
+                  <button
+                    onClick={handleStopCounting}
+                    className="mt-3 w-full py-2 px-3 bg-surface-alt hover:bg-surface-hover text-text text-sm rounded-lg border border-surface-hover transition-colors"
+                  >
+                    {t('game.counting_stop')}
+                  </button>
+                )}
               </div>
             )}
 

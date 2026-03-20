@@ -13,6 +13,8 @@ export function createGameStateFromPuzzle(puzzle: Puzzle): GameState {
     isDraw: false,
     gameOver: false,
     winner: null,
+    resultReason: null,
+    counting: null,
     whiteTime: 0,
     blackTime: 0,
     lastMoveTime: 0,

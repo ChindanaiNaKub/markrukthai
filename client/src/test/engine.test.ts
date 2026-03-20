@@ -6,6 +6,8 @@ import {
   getLegalMoves,
   isInCheck,
   makeMove,
+  startCounting,
+  stopCounting,
   hasAnyLegalMoves,
   posToAlgebraic,
   moveToNotation,
@@ -324,6 +326,133 @@ describe('Game Engine', () => {
       const newState = makeMove(state, { row: 4, col: 4 }, { row: 5, col: 4 });
 
       expect(newState?.board[5][4]?.type).toBe('PM'); // Promoted
+    });
+
+    it('should expose bare-king counting as available but undeclared', () => {
+      const board: Board = Array(8).fill(null).map(() => Array(8).fill(null));
+      board[0][0] = { type: 'K', color: 'white' };
+      board[0][1] = { type: 'R', color: 'white' };
+      board[7][7] = { type: 'K', color: 'black' };
+
+      const state = createInitialGameState(300000, 300000);
+      state.board = board;
+
+      const newState = makeMove(state, { row: 0, col: 1 }, { row: 1, col: 1 });
+
+      expect(newState?.counting).toMatchObject({
+        active: false,
+        type: 'pieces_honor',
+        countingColor: 'black',
+        strongerColor: 'white',
+        currentCount: 3,
+        limit: 16,
+        finalAttackPending: false,
+      });
+    });
+
+    it('should allow the counting side to start and stop counting', () => {
+      const board: Board = Array(8).fill(null).map(() => Array(8).fill(null));
+      board[0][0] = { type: 'K', color: 'white' };
+      board[0][1] = { type: 'R', color: 'white' };
+      board[7][7] = { type: 'K', color: 'black' };
+
+      const state = createInitialGameState(300000, 300000);
+      state.board = board;
+      state.turn = 'black';
+      state.counting = {
+        active: false,
+        type: 'pieces_honor',
+        countingColor: 'black',
+        strongerColor: 'white',
+        currentCount: 3,
+        limit: 16,
+        finalAttackPending: false,
+      };
+
+      const started = startCounting(state);
+      expect(started?.counting?.active).toBe(true);
+
+      const stopped = stopCounting(started!);
+      expect(stopped?.counting?.active).toBe(false);
+    });
+
+    it('should draw when the active board-honor count reaches the limit', () => {
+      const board: Board = Array(8).fill(null).map(() => Array(8).fill(null));
+      board[0][0] = { type: 'K', color: 'white' };
+      board[0][1] = { type: 'R', color: 'white' };
+      board[7][7] = { type: 'K', color: 'black' };
+      board[6][6] = { type: 'S', color: 'black' };
+
+      const state = createInitialGameState(300000, 300000);
+      state.board = board;
+      state.turn = 'black';
+      state.counting = {
+        active: true,
+        type: 'board_honor',
+        countingColor: 'black',
+        strongerColor: 'white',
+        currentCount: 64,
+        limit: 64,
+        finalAttackPending: false,
+      };
+
+      const newState = makeMove(state, { row: 7, col: 7 }, { row: 7, col: 6 });
+
+      expect(newState?.isDraw).toBe(true);
+      expect(newState?.gameOver).toBe(true);
+      expect(newState?.resultReason).toBe('counting_rule');
+    });
+
+    it('should draw if the disadvantaged side checkmates while still counting', () => {
+      const board: Board = Array(8).fill(null).map(() => Array(8).fill(null));
+      board[7][0] = { type: 'K', color: 'black' };
+      board[5][1] = { type: 'K', color: 'white' };
+      board[6][2] = { type: 'R', color: 'white' };
+
+      const state = createInitialGameState(300000, 300000);
+      state.board = board;
+      state.turn = 'white';
+      state.counting = {
+        active: true,
+        type: 'board_honor',
+        countingColor: 'white',
+        strongerColor: 'black',
+        currentCount: 10,
+        limit: 64,
+        finalAttackPending: false,
+      };
+
+      const newState = makeMove(state, { row: 6, col: 2 }, { row: 7, col: 2 });
+
+      expect(newState?.isDraw).toBe(true);
+      expect(newState?.winner).toBeNull();
+      expect(newState?.resultReason).toBe('counting_rule');
+    });
+
+    it('should draw after the final attacker move in a bare-king count', () => {
+      const board: Board = Array(8).fill(null).map(() => Array(8).fill(null));
+      board[0][0] = { type: 'K', color: 'white' };
+      board[0][1] = { type: 'R', color: 'white' };
+      board[7][7] = { type: 'K', color: 'black' };
+
+      const state = createInitialGameState(300000, 300000);
+      state.board = board;
+      state.turn = 'white';
+      state.counting = {
+        active: true,
+        type: 'pieces_honor',
+        countingColor: 'black',
+        strongerColor: 'white',
+        currentCount: 16,
+        limit: 16,
+        finalAttackPending: true,
+      };
+
+      const newState = makeMove(state, { row: 0, col: 1 }, { row: 1, col: 1 });
+
+      expect(newState?.isDraw).toBe(true);
+      expect(newState?.gameOver).toBe(true);
+      expect(newState?.resultReason).toBe('counting_rule');
     });
   });
 

@@ -29,6 +29,7 @@ export default function GameOverPanel({ winner, reason, playerColor, onRematch, 
       case 'stalemate': return t('gameover.by_stalemate');
       case 'draw_agreement': return t('gameover.by_agreement');
       case 'insufficient_material': return t('gameover.by_material');
+      case 'counting_rule': return t('gameover.by_counting');
       default: return reason;
     }
   };

@@ -1,4 +1,4 @@
-import { Board, Piece, PieceColor, PieceType, Position, Move, GameState } from './types';
+import { Board, Piece, PieceColor, PieceType, Position, Move, GameState, CountingState, ResultReason } from './types';
 
 export function createInitialBoard(): Board {
   const board: Board = Array(8).fill(null).map(() => Array(8).fill(null));
@@ -31,6 +31,8 @@ export function createInitialGameState(whiteTime: number, blackTime: number): Ga
     isDraw: false,
     gameOver: false,
     winner: null,
+    resultReason: null,
+    counting: null,
     whiteTime,
     blackTime,
     lastMoveTime: Date.now(),
@@ -64,6 +66,224 @@ function findKing(board: Board, color: PieceColor): Position | null {
     }
   }
   return null;
+}
+
+const MATERIAL_VALUES: Record<Exclude<PieceType, 'K'>, number> = {
+  R: 500,
+  N: 300,
+  S: 250,
+  M: 200,
+  PM: 200,
+  P: 100,
+};
+
+function getNonKingPieceCount(board: Board, color: PieceColor): number {
+  let count = 0;
+
+  for (const row of board) {
+    for (const piece of row) {
+      if (piece && piece.color === color && piece.type !== 'K') {
+        count++;
+      }
+    }
+  }
+
+  return count;
+}
+
+function getTotalPieceCount(board: Board): number {
+  let count = 0;
+
+  for (const row of board) {
+    for (const piece of row) {
+      if (piece) count++;
+    }
+  }
+
+  return count;
+}
+
+function hasUnpromotedPawn(board: Board): boolean {
+  for (const row of board) {
+    for (const piece of row) {
+      if (piece?.type === 'P') return true;
+    }
+  }
+
+  return false;
+}
+
+function getMaterialScore(board: Board, color: PieceColor): number {
+  let score = 0;
+
+  for (const row of board) {
+    for (const piece of row) {
+      if (piece && piece.color === color && piece.type !== 'K') {
+        score += MATERIAL_VALUES[piece.type];
+      }
+    }
+  }
+
+  return score;
+}
+
+function getPieceHonorLimit(board: Board, strongerColor: PieceColor): number {
+  let rooks = 0;
+  let bishops = 0;
+  let knights = 0;
+  let others = 0;
+
+  for (const row of board) {
+    for (const piece of row) {
+      if (!piece || piece.color !== strongerColor || piece.type === 'K') continue;
+
+      if (piece.type === 'R') {
+        rooks++;
+      } else if (piece.type === 'S') {
+        bishops++;
+      } else if (piece.type === 'N') {
+        knights++;
+      } else {
+        others++;
+      }
+    }
+  }
+
+  if (rooks >= 2) return 8;
+  if (rooks === 1) return 16;
+  if (bishops >= 2) return 22;
+  if (knights >= 2) return 32;
+  if (bishops === 1) return 44;
+  return 64;
+}
+
+function getBareKingCountingState(board: Board): CountingState | null {
+  const whiteNonKings = getNonKingPieceCount(board, 'white');
+  const blackNonKings = getNonKingPieceCount(board, 'black');
+
+  if (whiteNonKings === 0 && blackNonKings === 0) return null;
+
+  if (whiteNonKings === 0 || blackNonKings === 0) {
+    const countingColor: PieceColor = whiteNonKings === 0 ? 'white' : 'black';
+    const strongerColor: PieceColor = countingColor === 'white' ? 'black' : 'white';
+    const limit = getPieceHonorLimit(board, strongerColor);
+    const currentCount = getTotalPieceCount(board);
+
+    return {
+      active: false,
+      type: 'pieces_honor',
+      countingColor,
+      strongerColor,
+      currentCount,
+      limit,
+      finalAttackPending: false,
+    };
+  }
+
+  return null;
+}
+
+function getBoardHonorCountingState(board: Board): CountingState | null {
+  const whiteMaterial = getMaterialScore(board, 'white');
+  const blackMaterial = getMaterialScore(board, 'black');
+
+  if (whiteMaterial === blackMaterial) {
+    return null;
+  }
+
+  const countingColor: PieceColor = whiteMaterial < blackMaterial ? 'white' : 'black';
+  const strongerColor: PieceColor = countingColor === 'white' ? 'black' : 'white';
+
+  return {
+    active: false,
+    type: 'board_honor',
+    countingColor,
+    strongerColor,
+    currentCount: 0,
+    limit: 64,
+    finalAttackPending: false,
+  };
+}
+
+function getInitialCountingState(board: Board): CountingState | null {
+  if (hasUnpromotedPawn(board)) {
+    return null;
+  }
+
+  return getBareKingCountingState(board) ?? getBoardHonorCountingState(board);
+}
+
+function cloneCountingState(counting: CountingState): CountingState {
+  return { ...counting };
+}
+
+function getNextCountingState(previous: CountingState | null, board: Board): CountingState | null {
+  const fresh = getInitialCountingState(board);
+  if (!fresh) return null;
+
+  if (
+    previous &&
+    previous.type === fresh.type &&
+    previous.countingColor === fresh.countingColor &&
+    previous.strongerColor === fresh.strongerColor
+  ) {
+    return {
+      ...fresh,
+      active: previous.active,
+      currentCount: previous.currentCount,
+      finalAttackPending: previous.finalAttackPending,
+    };
+  }
+
+  return fresh;
+}
+
+function getAutomaticDrawReason(board: Board): ResultReason | null {
+  return isInsufficientMaterial(board) ? 'insufficient_material' : null;
+}
+
+export function canStartCounting(state: GameState): boolean {
+  return Boolean(
+    state.counting &&
+    !state.gameOver &&
+    !state.counting.active &&
+    state.turn === state.counting.countingColor,
+  );
+}
+
+export function canStopCounting(state: GameState): boolean {
+  return Boolean(
+    state.counting &&
+    !state.gameOver &&
+    state.counting.active &&
+    state.turn === state.counting.countingColor,
+  );
+}
+
+export function startCounting(state: GameState): GameState | null {
+  if (!canStartCounting(state) || !state.counting) return null;
+
+  return {
+    ...state,
+    counting: {
+      ...state.counting,
+      active: true,
+      finalAttackPending: false,
+    },
+  };
+}
+
+export function stopCounting(state: GameState): GameState | null {
+  if (!canStopCounting(state) || !state.counting) return null;
+
+  return {
+    ...state,
+    counting: {
+      ...state.counting,
+      active: false,
+      finalAttackPending: false,
+    },
+  };
 }
 
 function getRawMoves(board: Board, pos: Position): Position[] {
@@ -270,8 +490,77 @@ export function makeMove(state: GameState, from: Position, to: Position): GameSt
 
   const isCheckmate = check && !hasLegal;
   const isStalemate = !check && !hasLegal;
+  let counting = getNextCountingState(state.counting, newBoard);
+  let winner: PieceColor | null = isCheckmate ? state.turn : null;
+  let resultReason: ResultReason = isCheckmate ? 'checkmate' : null;
+  let isDraw = false;
+  let gameOver = false;
 
-  const isDraw = isStalemate || isInsufficientMaterial(newBoard);
+  if (counting?.type === 'pieces_honor' && counting.active && counting.currentCount > counting.limit) {
+    isDraw = true;
+    gameOver = true;
+    winner = null;
+    resultReason = 'counting_rule';
+  }
+
+  if (!gameOver && isCheckmate && state.counting?.active && state.turn === state.counting.countingColor) {
+    isDraw = true;
+    gameOver = true;
+    winner = null;
+    resultReason = 'counting_rule';
+  }
+
+  if (!gameOver && counting?.active && state.turn === counting.countingColor) {
+    counting = cloneCountingState(counting);
+    counting.currentCount += 1;
+
+    if (counting.type === 'board_honor') {
+      if (counting.currentCount >= counting.limit) {
+        isDraw = true;
+        gameOver = true;
+        winner = null;
+        resultReason = 'counting_rule';
+      }
+    } else if (counting.currentCount > counting.limit) {
+      isDraw = true;
+      gameOver = true;
+      winner = null;
+      resultReason = 'counting_rule';
+    } else if (counting.currentCount === counting.limit) {
+      counting.finalAttackPending = true;
+    }
+  } else if (!gameOver && counting?.type === 'pieces_honor' && counting.finalAttackPending && state.turn === counting.strongerColor) {
+    counting = cloneCountingState(counting);
+    counting.finalAttackPending = false;
+
+    if (!isCheckmate) {
+      isDraw = true;
+      gameOver = true;
+      winner = null;
+      resultReason = 'counting_rule';
+    }
+  }
+
+  if (!gameOver && isCheckmate) {
+    gameOver = true;
+  }
+
+  if (!gameOver && isStalemate) {
+    isDraw = true;
+    gameOver = true;
+    winner = null;
+    resultReason = 'stalemate';
+  }
+
+  if (!gameOver) {
+    const automaticDrawReason = getAutomaticDrawReason(newBoard);
+    if (automaticDrawReason) {
+      isDraw = true;
+      gameOver = true;
+      winner = null;
+      resultReason = automaticDrawReason;
+    }
+  }
 
   return {
     ...state,
@@ -281,9 +570,11 @@ export function makeMove(state: GameState, from: Position, to: Position): GameSt
     isCheck: check,
     isCheckmate,
     isStalemate,
-    isDraw: isDraw,
-    gameOver: isCheckmate || isDraw,
-    winner: isCheckmate ? state.turn : null,
+    isDraw,
+    gameOver,
+    winner,
+    resultReason,
+    counting: gameOver ? null : counting,
     moveCount: state.moveCount + 1,
   };
 }

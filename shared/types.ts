@@ -1,4 +1,15 @@
 export type PieceColor = 'white' | 'black';
+export type ResultReason =
+  | 'checkmate'
+  | 'stalemate'
+  | 'insufficient_material'
+  | 'counting_rule'
+  | 'draw_agreement'
+  | 'resignation'
+  | 'timeout'
+  | null;
+
+export type CountingRuleType = 'board_honor' | 'pieces_honor';
 
 export type PieceType = 'K' | 'M' | 'S' | 'R' | 'N' | 'P' | 'PM';
 // K = Khun (King), M = Met (Queen), S = Khon (Bishop/Silver)
@@ -23,6 +34,16 @@ export interface Move {
 
 export type Board = (Piece | null)[][];
 
+export interface CountingState {
+  active: boolean;
+  type: CountingRuleType;
+  countingColor: PieceColor;
+  strongerColor: PieceColor;
+  currentCount: number;
+  limit: number;
+  finalAttackPending: boolean;
+}
+
 export interface GameState {
   board: Board;
   turn: PieceColor;
@@ -33,6 +54,8 @@ export interface GameState {
   isDraw: boolean;
   gameOver: boolean;
   winner: PieceColor | null;
+  resultReason: ResultReason;
+  counting: CountingState | null;
   whiteTime: number; // milliseconds remaining
   blackTime: number;
   lastMoveTime: number;
@@ -66,6 +89,8 @@ export interface ClientGameState {
   isDraw: boolean;
   gameOver: boolean;
   winner: PieceColor | null;
+  resultReason: ResultReason;
+  counting: CountingState | null;
   whiteTime: number;
   blackTime: number;
   moveCount: number;
@@ -100,6 +125,8 @@ export interface ClientToServerEvents {
   join_game: (data: { gameId: string }) => void;
   make_move: (data: { from: Position; to: Position }) => void;
   resign: () => void;
+  start_counting: () => void;
+  stop_counting: () => void;
   offer_draw: () => void;
   respond_draw: (data: { accept: boolean }) => void;
   request_rematch: () => void;

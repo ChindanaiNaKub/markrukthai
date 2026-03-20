@@ -41,6 +41,7 @@ export default function GamesPage() {
       timeout: 'games.reason_timeout',
       stalemate: 'games.reason_stalemate',
       draw_agreement: 'games.reason_agreement',
+      counting_rule: 'games.reason_counting',
       draw: 'games.reason_draw',
     };
     return keyMap[reason] ? t(keyMap[reason]) : reason;

@@ -211,10 +211,7 @@ io.on('connection', (socket) => {
     }
 
     if (room.gameState.gameOver) {
-      const reason = room.gameState.isCheckmate ? 'checkmate'
-        : room.gameState.isStalemate ? 'stalemate'
-        : room.gameState.isDraw ? 'draw'
-        : 'timeout';
+      const reason = room.gameState.resultReason ?? 'draw';
 
       saveGameToDb(room, reason);
 
@@ -271,6 +268,36 @@ io.on('connection', (socket) => {
     const opponentId = by === 'white' ? room.black : room.white;
     if (opponentId) {
       io.to(opponentId).emit('draw_offered', { by });
+    }
+  });
+
+  socket.on('start_counting', () => {
+    const gameId = gameManager.getPlayerGame(socket.id);
+    if (!gameId) return;
+
+    const room = gameManager.startCounting(gameId, socket.id);
+    if (!room) return;
+
+    if (room.white) {
+      io.to(room.white).emit('game_state', gameManager.getClientGameState(room, room.white));
+    }
+    if (room.black) {
+      io.to(room.black).emit('game_state', gameManager.getClientGameState(room, room.black));
+    }
+  });
+
+  socket.on('stop_counting', () => {
+    const gameId = gameManager.getPlayerGame(socket.id);
+    if (!gameId) return;
+
+    const room = gameManager.stopCounting(gameId, socket.id);
+    if (!room) return;
+
+    if (room.white) {
+      io.to(room.white).emit('game_state', gameManager.getClientGameState(room, room.white));
+    }
+    if (room.black) {
+      io.to(room.black).emit('game_state', gameManager.getClientGameState(room, room.black));
     }
   });
 

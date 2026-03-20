@@ -173,6 +173,14 @@ const EN: Record<string, string> = {
   'game.piece_guide': '📖 Piece Guide',
   'game.opponent_dc': 'Opponent disconnected. Waiting for reconnection...',
   'game.game_label': 'Game:',
+  'game.counting_title': 'Counting Rule',
+  'game.counting_board_honor': 'Board honor',
+  'game.counting_pieces_honor': 'Pieces honor',
+  'game.counting_status': '{type}: {color} is counting {current}/{limit}',
+  'game.counting_final': '{type}: final attacking move before draw',
+  'game.counting_available': '{type}: {color} may start counting',
+  'game.counting_start': 'Start Count',
+  'game.counting_stop': 'Stop Count',
 
   // Game Over Modal
   'gameover.you_win': 'You Win!',
@@ -184,6 +192,7 @@ const EN: Record<string, string> = {
   'gameover.by_stalemate': 'by stalemate',
   'gameover.by_agreement': 'by mutual agreement',
   'gameover.by_material': 'by insufficient material',
+  'gameover.by_counting': 'by counting rule',
   'gameover.rematch': 'Rematch',
   'gameover.is_victorious': 'is victorious',
 
@@ -258,6 +267,7 @@ const EN: Record<string, string> = {
   'games.reason_timeout': 'Timeout',
   'games.reason_stalemate': 'Stalemate',
   'games.reason_agreement': 'Agreement',
+  'games.reason_counting': 'Counting rule',
   'games.reason_draw': 'Draw',
 
   // Feedback
@@ -474,6 +484,14 @@ const TH: Record<string, string> = {
   'game.piece_guide': '📖 คู่มือตัวหมาก',
   'game.opponent_dc': 'คู่แข่งหลุดออก กำลังรอเชื่อมต่อใหม่...',
   'game.game_label': 'เกม:',
+  'game.counting_title': 'กฎการนับ',
+  'game.counting_board_honor': 'การนับแบบหมดเบี้ย',
+  'game.counting_pieces_honor': 'การนับแบบขุนเปล่า',
+  'game.counting_status': '{type}: ฝั่ง{color} นับอยู่ที่ {current}/{limit}',
+  'game.counting_final': '{type}: ตาโจมตีสุดท้ายก่อนเสมอ',
+  'game.counting_available': '{type}: ฝั่ง{color} สามารถเริ่มนับได้',
+  'game.counting_start': 'เริ่มนับ',
+  'game.counting_stop': 'หยุดนับ',
 
   // Game Over Modal
   'gameover.you_win': 'คุณชนะ!',
@@ -485,6 +503,7 @@ const TH: Record<string, string> = {
   'gameover.by_stalemate': 'โดยอับ',
   'gameover.by_agreement': 'ตกลงเสมอ',
   'gameover.by_material': 'ตัวหมากไม่เพียงพอ',
+  'gameover.by_counting': 'โดยกฎการนับ',
   'gameover.rematch': 'แข่งอีกครั้ง',
   'gameover.is_victorious': 'ชนะ',
 
@@ -559,6 +578,7 @@ const TH: Record<string, string> = {
   'games.reason_timeout': 'หมดเวลา',
   'games.reason_stalemate': 'อับ',
   'games.reason_agreement': 'ตกลง',
+  'games.reason_counting': 'กฎการนับ',
   'games.reason_draw': 'เสมอ',
 
   // Feedback

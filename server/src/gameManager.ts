@@ -3,7 +3,7 @@ import {
   GameRoom, GameState, TimeControl, PieceColor,
   Position, ClientGameState, Move,
 } from '../../shared/types';
-import { createInitialGameState, makeMove, isInCheck, hasAnyLegalMoves } from '../../shared/engine';
+import { createInitialGameState, makeMove, startCounting, stopCounting } from '../../shared/engine';
 
 export class GameManager {
   private games: Map<string, GameRoom> = new Map();
@@ -86,6 +86,8 @@ export class GameManager {
       room.status = 'finished';
       room.gameState.gameOver = true;
       room.gameState.winner = room.gameState.whiteTime <= 0 ? 'black' : 'white';
+      room.gameState.resultReason = 'timeout';
+      room.gameState.counting = null;
       this.stopClock(gameId);
       return { success: true, room };
     }
@@ -126,6 +128,8 @@ export class GameManager {
 
     room.gameState.gameOver = true;
     room.gameState.winner = playerColor === 'white' ? 'black' : 'white';
+    room.gameState.resultReason = 'resignation';
+    room.gameState.counting = null;
     room.status = 'finished';
     this.stopClock(gameId);
 
@@ -154,12 +158,42 @@ export class GameManager {
       room.gameState.gameOver = true;
       room.gameState.isDraw = true;
       room.gameState.winner = null;
+      room.gameState.resultReason = 'draw_agreement';
+      room.gameState.counting = null;
       room.status = 'finished';
       this.stopClock(gameId);
     } else {
       room.drawOffer = null;
     }
 
+    return room;
+  }
+
+  startCounting(gameId: string, socketId: string): GameRoom | null {
+    const room = this.games.get(gameId);
+    if (!room || room.status !== 'playing') return null;
+
+    const playerColor = this.getPlayerColor(room, socketId);
+    if (!playerColor || playerColor !== room.gameState.turn) return null;
+
+    const newState = startCounting(room.gameState);
+    if (!newState) return null;
+
+    room.gameState = newState;
+    return room;
+  }
+
+  stopCounting(gameId: string, socketId: string): GameRoom | null {
+    const room = this.games.get(gameId);
+    if (!room || room.status !== 'playing') return null;
+
+    const playerColor = this.getPlayerColor(room, socketId);
+    if (!playerColor || playerColor !== room.gameState.turn) return null;
+
+    const newState = stopCounting(room.gameState);
+    if (!newState) return null;
+
+    room.gameState = newState;
     return room;
   }
 
@@ -231,6 +265,8 @@ export class GameManager {
       isDraw: room.gameState.isDraw,
       gameOver: room.gameState.gameOver,
       winner: room.gameState.winner,
+      resultReason: room.gameState.resultReason,
+      counting: room.gameState.counting,
       whiteTime: room.gameState.whiteTime,
       blackTime: room.gameState.blackTime,
       moveCount: room.gameState.moveCount,
@@ -277,12 +313,16 @@ export class GameManager {
         room.gameState.whiteTime = 0;
         room.gameState.gameOver = true;
         room.gameState.winner = 'black';
+        room.gameState.resultReason = 'timeout';
+        room.gameState.counting = null;
         room.status = 'finished';
         this.stopClock(gameId);
       } else if (room.gameState.blackTime <= 0) {
         room.gameState.blackTime = 0;
         room.gameState.gameOver = true;
         room.gameState.winner = 'white';
+        room.gameState.resultReason = 'timeout';
+        room.gameState.counting = null;
         room.status = 'finished';
         this.stopClock(gameId);
       }
