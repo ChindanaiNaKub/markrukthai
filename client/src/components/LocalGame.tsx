@@ -25,7 +25,7 @@ export default function LocalGame() {
   const [viewMoveIndex, setViewMoveIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    if (!gameState.gameOver || gameState.moveHistory.length === 0) return;
+    if (gameState.moveHistory.length === 0) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const moveCount = gameState.moveHistory.length;
@@ -245,10 +245,10 @@ export default function LocalGame() {
               moves={gameState.moveHistory}
               initialBoard={createInitialBoard()}
               currentMoveIndex={viewMoveIndex ?? undefined}
-              onMoveClick={gameState.gameOver ? handleMoveClick : undefined}
+              onMoveClick={handleMoveClick}
             />
 
-            {gameState.gameOver && gameState.moveHistory.length > 0 && (
+            {gameState.moveHistory.length > 0 && (
               <div className="text-center text-xs text-text-dim">
                 Use arrow keys to navigate moves
               </div>
