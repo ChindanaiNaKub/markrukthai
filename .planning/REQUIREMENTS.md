@@ -9,7 +9,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Test Foundation
 
-- [ ] **FOUND-01**: ESLint react-hooks exhaustive-deps rule configured and enforced
+- [x] **FOUND-01**: ESLint react-hooks exhaustive-deps rule configured and enforced
 - [ ] **FOUND-02**: Socket.IO cleanup patterns documented in CONTRIBUTING.md
 - [ ] **FOUND-03**: CONTRIBUTING.md testing section explains run commands, patterns, and what to test
 - [ ] **FOUND-04**: Regression test suite template created for documenting and preventing recurring bugs
@@ -97,7 +97,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUND-01 | Phase 1 | Pending |
+| FOUND-01 | Phase 1 | Complete |
 | FOUND-02 | Phase 1 | Pending |
 | FOUND-03 | Phase 1 | Pending |
 | FOUND-04 | Phase 1 | Pending |
