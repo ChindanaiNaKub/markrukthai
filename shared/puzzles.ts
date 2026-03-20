@@ -60,6 +60,24 @@ export const PUZZLES: Puzzle[] = [
     solution: [{ from: { row: 2, col: 4 }, to: { row: 1, col: 3 } }],
   },
   {
+    id: 3,
+    title: 'Back Rank Lock',
+    description: 'A simple Rua mate. Find the one-move finish.',
+    explanation: 'The rook slides onto the back rank to check the black king, while your king covers the nearby escape squares.',
+    source: 'Generated starter study',
+    theme: 'Checkmate',
+    difficulty: 'beginner',
+    toMove: 'white',
+    board: (function() {
+      const b = emptyBoard();
+      b[7][7] = p('K', 'black');
+      b[5][6] = p('K', 'white');
+      b[6][5] = p('R', 'white');
+      return b;
+    })(),
+    solution: [{ from: { row: 6, col: 5 }, to: { row: 7, col: 5 } }],
+  },
+  {
     id: 5,
     title: 'Bia Promotion',
     description: 'Promote your Bia (Pawn) to a Met to win.',

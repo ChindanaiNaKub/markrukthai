@@ -1,30 +1,13 @@
-import { getLegalMoves, hasAnyLegalMoves, isInCheck, makeMove } from './engine';
-import type { Board, GameState, PieceColor, Position } from './types';
+import { getLegalMoves, hasAnyLegalMoves, makeMove, posToAlgebraic } from './engine';
+import type { Board, GameState, Move, PieceColor, Position } from './types';
 import type { Puzzle } from './puzzles';
+import { createGameStateFromPuzzle, getForcingMoves, isThemeSatisfied } from './puzzleSolver';
 
 export interface PuzzleValidationResult {
   puzzleId: number;
   title: string;
   errors: string[];
   warnings: string[];
-}
-
-function createGameStateFromPuzzle(puzzle: Puzzle): GameState {
-  return {
-    board: puzzle.board.map(row => row.map(cell => (cell ? { ...cell } : null))),
-    turn: puzzle.toMove,
-    moveHistory: [],
-    isCheck: isInCheck(puzzle.board, puzzle.toMove),
-    isCheckmate: false,
-    isStalemate: false,
-    isDraw: false,
-    gameOver: false,
-    winner: null,
-    whiteTime: 0,
-    blackTime: 0,
-    lastMoveTime: 0,
-    moveCount: 0,
-  };
 }
 
 function countKings(board: Board, color: PieceColor): number {
@@ -66,6 +49,53 @@ function validateThemeOutcome(puzzle: Puzzle, finalState: GameState, errors: str
 
   if (puzzle.theme === 'Promotion' && !lastMove?.promoted) {
     errors.push('Final move does not promote a pawn for a Promotion puzzle.');
+  }
+}
+
+function formatMove(move: Move): string {
+  return `${posToAlgebraic(move.from)}-${posToAlgebraic(move.to)}`;
+}
+
+function findWinningFirstMoves(puzzle: Puzzle, state: GameState): Move[] {
+  return getForcingMoves(state, puzzle);
+}
+
+function moveEquals(actual: Move, expected: { from: Position; to: Position }): boolean {
+  return actual.from.row === expected.from.row &&
+    actual.from.col === expected.from.col &&
+    actual.to.row === expected.to.row &&
+    actual.to.col === expected.to.col;
+}
+
+function validateSolutionBranch(puzzle: Puzzle, initialState: GameState, errors: string[]): void {
+  let state = initialState;
+
+  for (let index = 0; index < puzzle.solution.length; index++) {
+    const expectedMove = puzzle.solution[index];
+    const candidateMoves = getForcingMoves(state, puzzle);
+
+    if (!candidateMoves.length) {
+      errors.push(`Solution move ${index + 1} does not stay inside a forced puzzle branch.`);
+      return;
+    }
+
+    if (!candidateMoves.some(move => moveEquals(move, expectedMove))) {
+      const role = state.turn === puzzle.toMove ? 'solver' : 'defender';
+      errors.push(`Solution move ${index + 1} is not a valid ${role} branch move.`);
+      return;
+    }
+
+    const nextState = makeMove(state, expectedMove.from, expectedMove.to);
+    if (!nextState) {
+      errors.push(`Solution move ${index + 1} could not be applied.`);
+      return;
+    }
+
+    state = nextState;
+  }
+
+  if (!isThemeSatisfied(puzzle, state)) {
+    validateThemeOutcome(puzzle, state, errors);
   }
 }
 
@@ -111,24 +141,26 @@ export function validatePuzzle(puzzle: Puzzle): PuzzleValidationResult {
     return { puzzleId: puzzle.id, title: puzzle.title, errors, warnings };
   }
 
-  for (let index = 0; index < puzzle.solution.length; index++) {
-    const expectedMove = puzzle.solution[index];
-    if (!isLegalMove(state.board, expectedMove.from, expectedMove.to)) {
-      errors.push(`Solution move ${index + 1} is illegal for ${state.turn}.`);
-      break;
-    }
+  const winningFirstMoves = findWinningFirstMoves(puzzle, state);
+  const expectedFirstMove = winningFirstMoves.find(move =>
+    move.from.row === firstMove.from.row &&
+    move.from.col === firstMove.from.col &&
+    move.to.row === firstMove.to.row &&
+    move.to.col === firstMove.to.col,
+  );
 
-    const nextState = makeMove(state, expectedMove.from, expectedMove.to);
-    if (!nextState) {
-      errors.push(`Solution move ${index + 1} could not be applied.`);
-      break;
-    }
+  if (!expectedFirstMove) {
+    errors.push('Listed first move does not force the puzzle theme within the solution length.');
+    return { puzzleId: puzzle.id, title: puzzle.title, errors, warnings };
+  }
 
-    state = nextState;
+  if (winningFirstMoves.length > 1) {
+    errors.push(`Puzzle has multiple winning first moves: ${winningFirstMoves.map(formatMove).join(', ')}.`);
+    return { puzzleId: puzzle.id, title: puzzle.title, errors, warnings };
   }
 
   if (errors.length === 0) {
-    validateThemeOutcome(puzzle, state, errors);
+    validateSolutionBranch(puzzle, state, errors);
   }
 
   return { puzzleId: puzzle.id, title: puzzle.title, errors, warnings };

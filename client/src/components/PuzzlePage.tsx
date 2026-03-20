@@ -1,8 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { Position, PieceColor, Move, GameState, Board as BoardType } from '@shared/types';
-import { getLegalMoves, makeMove, isInCheck } from '@shared/engine';
-import { PUZZLES, Puzzle } from '@shared/puzzles';
+import type { Position, Move, GameState } from '@shared/types';
+import { getLegalMoves, makeMove } from '@shared/engine';
+import { PUZZLES } from '@shared/puzzles';
+import { createGameStateFromPuzzle, getForcingMoves, getPliesRemaining, isThemeSatisfied } from '@shared/puzzleSolver';
 import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound } from '../lib/sounds';
 import { useTranslation } from '../lib/i18n';
 import { BoardErrorBoundary } from './BoardErrorBoundary';
@@ -10,24 +11,6 @@ import Header from './Header';
 import Board from './Board';
 
 type PuzzleStatus = 'playing' | 'success' | 'failed';
-
-function createGameStateFromPuzzle(puzzle: Puzzle): GameState {
-  return {
-    board: puzzle.board.map(row => row.map(cell => cell ? { ...cell } : null)),
-    turn: puzzle.toMove,
-    moveHistory: [],
-    isCheck: isInCheck(puzzle.board, puzzle.toMove),
-    isCheckmate: false,
-    isStalemate: false,
-    isDraw: false,
-    gameOver: false,
-    winner: null,
-    whiteTime: 0,
-    blackTime: 0,
-    lastMoveTime: 0,
-    moveCount: 0,
-  };
-}
 
 function PuzzleListPage() {
   const { t } = useTranslation();
@@ -153,7 +136,6 @@ function PuzzlePlayer() {
   const [selectedSquare, setSelectedSquare] = useState<Position | null>(null);
   const [legalMoves, setLegalMoves] = useState<Position[]>([]);
   const [status, setStatus] = useState<PuzzleStatus>('playing');
-  const [currentSolutionStep, setCurrentSolutionStep] = useState(0);
   const [hintUsed, setHintUsed] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const autoReplyTimeoutRef = useRef<number | null>(null);
@@ -169,7 +151,6 @@ function PuzzlePlayer() {
       setSelectedSquare(null);
       setLegalMoves([]);
       setStatus('playing');
-      setCurrentSolutionStep(0);
       setHintUsed(false);
       setShowHint(false);
     }
@@ -196,15 +177,30 @@ function PuzzlePlayer() {
     playGameOverSound();
   }, [markCompleted]);
 
-  const queueOpponentReply = useCallback((stateAfterPlayerMove: GameState, nextStep: number) => {
+  const queueOpponentReply = useCallback((stateAfterPlayerMove: GameState) => {
     if (!puzzle) return;
 
-    if (nextStep >= puzzle.solution.length) {
+    if (isThemeSatisfied(puzzle, stateAfterPlayerMove)) {
       finishPuzzle();
       return;
     }
 
-    const replyMove = puzzle.solution[nextStep];
+    const replyMoves = getForcingMoves(stateAfterPlayerMove, puzzle);
+    if (!replyMoves.length) {
+      setStatus('failed');
+      return;
+    }
+
+    const canonicalReply = puzzle.solution[stateAfterPlayerMove.moveHistory.length];
+    const replyMove = canonicalReply
+      ? replyMoves.find(move =>
+        move.from.row === canonicalReply.from.row &&
+        move.from.col === canonicalReply.from.col &&
+        move.to.row === canonicalReply.to.row &&
+        move.to.col === canonicalReply.to.col,
+      ) ?? replyMoves[0]
+      : replyMoves[0];
+
     autoReplyTimeoutRef.current = window.setTimeout(() => {
       const replyState = makeMove(stateAfterPlayerMove, replyMove.from, replyMove.to);
       autoReplyTimeoutRef.current = null;
@@ -221,11 +217,13 @@ function PuzzlePlayer() {
       else if (lastMove.captured) playCaptureSound();
       else playMoveSound();
 
-      const nextPlayerStep = nextStep + 1;
-      if (nextPlayerStep >= puzzle.solution.length) {
+      if (isThemeSatisfied(puzzle, replyState)) {
         finishPuzzle();
       } else {
-        setCurrentSolutionStep(nextPlayerStep);
+        const nextSolverMoves = getForcingMoves(replyState, puzzle);
+        if (!nextSolverMoves.length && getPliesRemaining(puzzle, replyState) > 0) {
+          setStatus('failed');
+        }
       }
     }, 450);
   }, [finishPuzzle, puzzle]);
@@ -240,13 +238,13 @@ function PuzzlePlayer() {
     if (selectedSquare) {
       const isLegal = legalMoves.some(m => m.row === pos.row && m.col === pos.col);
       if (isLegal) {
-        const expectedMove = puzzle.solution[currentSolutionStep];
-
-        const isCorrect =
-          selectedSquare.row === expectedMove.from.row &&
-          selectedSquare.col === expectedMove.from.col &&
-          pos.row === expectedMove.to.row &&
-          pos.col === expectedMove.to.col;
+        const forcingMoves = getForcingMoves(gameState, puzzle);
+        const isCorrect = forcingMoves.some(move =>
+          move.from.row === selectedSquare.row &&
+          move.from.col === selectedSquare.col &&
+          move.to.row === pos.row &&
+          move.to.col === pos.col,
+        );
 
         if (isCorrect) {
           const newState = makeMove(gameState, selectedSquare, pos);
@@ -260,8 +258,7 @@ function PuzzlePlayer() {
             else if (lastMove.captured) playCaptureSound();
             else playMoveSound();
 
-            const nextStep = currentSolutionStep + 1;
-            queueOpponentReply(newState, nextStep);
+            queueOpponentReply(newState);
           }
         } else {
           setStatus('failed');
@@ -279,7 +276,7 @@ function PuzzlePlayer() {
       setSelectedSquare(null);
       setLegalMoves([]);
     }
-  }, [gameState, puzzle, selectedSquare, legalMoves, status, currentSolutionStep, queueOpponentReply]);
+  }, [gameState, puzzle, selectedSquare, legalMoves, status, queueOpponentReply]);
 
   const handlePieceDrop = useCallback((from: Position, to: Position) => {
     if (!gameState || !puzzle || status !== 'playing') return;
@@ -290,12 +287,13 @@ function PuzzlePlayer() {
     const legal = getLegalMoves(gameState.board, from);
     if (!legal.some(m => m.row === to.row && m.col === to.col)) return;
 
-    const expectedMove = puzzle.solution[currentSolutionStep];
-    const isCorrect =
-      from.row === expectedMove.from.row &&
-      from.col === expectedMove.from.col &&
-      to.row === expectedMove.to.row &&
-      to.col === expectedMove.to.col;
+    const forcingMoves = getForcingMoves(gameState, puzzle);
+    const isCorrect = forcingMoves.some(move =>
+      move.from.row === from.row &&
+      move.from.col === from.col &&
+      move.to.row === to.row &&
+      move.to.col === to.col,
+    );
 
     if (isCorrect) {
       const newState = makeMove(gameState, from, to);
@@ -309,15 +307,14 @@ function PuzzlePlayer() {
         else if (lastMove.captured) playCaptureSound();
         else playMoveSound();
 
-        const nextStep = currentSolutionStep + 1;
-        queueOpponentReply(newState, nextStep);
+        queueOpponentReply(newState);
       }
     } else {
       setStatus('failed');
       setSelectedSquare(null);
       setLegalMoves([]);
     }
-  }, [gameState, puzzle, status, currentSolutionStep, queueOpponentReply]);
+  }, [gameState, puzzle, status, queueOpponentReply]);
 
   const handleRetry = () => {
     if (autoReplyTimeoutRef.current !== null) {
@@ -329,7 +326,6 @@ function PuzzlePlayer() {
       setSelectedSquare(null);
       setLegalMoves([]);
       setStatus('playing');
-      setCurrentSolutionStep(0);
       setShowHint(false);
     }
   };
@@ -387,11 +383,14 @@ function PuzzlePlayer() {
     );
   }
 
-  const hintMove = puzzle.solution[currentSolutionStep];
-  const hintSquare = showHint ? hintMove?.from : null;
+  const hintMove = gameState && gameState.turn === puzzle.toMove
+    ? getForcingMoves(gameState, puzzle)[0]
+    : undefined;
+  const hintSquare = showHint && hintMove ? hintMove.from : null;
   const nextPuzzle = getNextPuzzle();
   const prevPuzzle = getPrevPuzzle();
   const colorLabel = puzzle.toMove === 'white' ? t('common.white') : t('common.black');
+  const currentStep = gameState ? Math.min(gameState.moveHistory.length + 1, puzzle.solution.length) : 1;
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
@@ -457,7 +456,7 @@ function PuzzlePlayer() {
                   {t('puzzle.find_best', { color: colorLabel })}
                 </p>
                 <p className="text-text-dim text-xs mt-1">
-                  {t('puzzle.step', { current: currentSolutionStep + 1, total: puzzle.solution.length })}
+                  {t('puzzle.step', { current: currentStep, total: puzzle.solution.length })}
                 </p>
               </div>
             )}

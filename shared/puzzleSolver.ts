@@ -1,0 +1,125 @@
+import { getLegalMoves, isInCheck, makeMove } from './engine';
+import type { Board, GameState, Move, PieceColor } from './types';
+import type { Puzzle } from './puzzles';
+
+export function createGameStateFromPuzzle(puzzle: Puzzle): GameState {
+  return {
+    board: puzzle.board.map(row => row.map(cell => (cell ? { ...cell } : null))),
+    turn: puzzle.toMove,
+    moveHistory: [],
+    isCheck: isInCheck(puzzle.board, puzzle.toMove),
+    isCheckmate: false,
+    isStalemate: false,
+    isDraw: false,
+    gameOver: false,
+    winner: null,
+    whiteTime: 0,
+    blackTime: 0,
+    lastMoveTime: 0,
+    moveCount: 0,
+  };
+}
+
+export function isThemeSatisfied(puzzle: Puzzle, state: GameState): boolean {
+  const lastMove = state.moveHistory[state.moveHistory.length - 1];
+
+  if (puzzle.theme === 'Checkmate') {
+    return state.isCheckmate;
+  }
+
+  if (puzzle.theme === 'Promotion') {
+    return Boolean(lastMove?.promoted);
+  }
+
+  return false;
+}
+
+export function getPliesRemaining(puzzle: Puzzle, state: GameState): number {
+  return Math.max(0, puzzle.solution.length - state.moveHistory.length);
+}
+
+export function getAllLegalMoves(board: Board, color: PieceColor): Move[] {
+  const legalMoves: Move[] = [];
+
+  for (let row = 0; row < 8; row++) {
+    for (let col = 0; col < 8; col++) {
+      const piece = board[row][col];
+      if (!piece || piece.color !== color) continue;
+
+      for (const target of getLegalMoves(board, { row, col })) {
+        legalMoves.push({
+          from: { row, col },
+          to: target,
+        });
+      }
+    }
+  }
+
+  return legalMoves;
+}
+
+function encodeState(state: GameState, pliesRemaining: number): string {
+  return JSON.stringify({
+    board: state.board,
+    turn: state.turn,
+    moveHistory: state.moveHistory,
+    pliesRemaining,
+  });
+}
+
+export function canForceTheme(
+  state: GameState,
+  puzzle: Puzzle,
+  solverColor: PieceColor,
+  pliesRemaining: number,
+  memo: Map<string, boolean>,
+): boolean {
+  if (isThemeSatisfied(puzzle, state)) {
+    return true;
+  }
+
+  if (pliesRemaining === 0) {
+    return false;
+  }
+
+  const memoKey = encodeState(state, pliesRemaining);
+  const cached = memo.get(memoKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const legalMoves = getAllLegalMoves(state.board, state.turn);
+  if (legalMoves.length === 0) {
+    const result = isThemeSatisfied(puzzle, state);
+    memo.set(memoKey, result);
+    return result;
+  }
+
+  const result = state.turn === solverColor
+    ? legalMoves.some(move => {
+      const nextState = makeMove(state, move.from, move.to);
+      return nextState ? canForceTheme(nextState, puzzle, solverColor, pliesRemaining - 1, memo) : false;
+    })
+    : legalMoves.every(move => {
+      const nextState = makeMove(state, move.from, move.to);
+      return nextState ? canForceTheme(nextState, puzzle, solverColor, pliesRemaining - 1, memo) : false;
+    });
+
+  memo.set(memoKey, result);
+  return result;
+}
+
+export function getForcingMoves(state: GameState, puzzle: Puzzle): Move[] {
+  const pliesRemaining = getPliesRemaining(puzzle, state);
+  if (pliesRemaining === 0 || isThemeSatisfied(puzzle, state)) {
+    return [];
+  }
+
+  const legalMoves = getAllLegalMoves(state.board, state.turn);
+  const memo = new Map<string, boolean>();
+
+  return legalMoves.filter(move => {
+    const nextState = makeMove(state, move.from, move.to);
+    return nextState ? canForceTheme(nextState, puzzle, puzzle.toMove, pliesRemaining - 1, memo) : false;
+  });
+}
