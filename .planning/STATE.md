@@ -80,5 +80,11 @@ No metrics yet — project in initialization phase
 
 **Blockers:** None
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260320-kym | I want to navigate with key arrows on the keyboard while playing to see the before position i cant do that. the moves is lock | 2026-03-20 | 2b5e3f8 | [260320-kym-i-want-to-navigate-with-key-arrows-on-th](./quick/260320-kym-i-want-to-navigate-with-key-arrows-on-th/) |
+
 ---
 *Last updated: 2026-03-20*
