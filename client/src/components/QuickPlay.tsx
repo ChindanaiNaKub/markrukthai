@@ -22,24 +22,38 @@ export default function QuickPlay() {
   const { t } = useTranslation();
   const [selectedTime, setSelectedTime] = useState(TIME_PRESETS[3]);
   const [searching, setSearching] = useState(false);
+  const [requestPending, setRequestPending] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
   const [queueSize, setQueueSize] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const connectHandlerRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     connectSocket();
 
     const handleMatchFound = ({ gameId }: { gameId: string; color: PieceColor }) => {
       setSearching(false);
+      setRequestPending(false);
+      setError(null);
       navigate(`/game/${gameId}`);
     };
 
     const handleMatchmakingStarted = () => {
       setSearching(true);
+      setRequestPending(false);
+      setError(null);
     };
 
     const handleMatchmakingCancelled = () => {
       setSearching(false);
+      setRequestPending(false);
+    };
+
+    const handleError = ({ message }: { message: string }) => {
+      setRequestPending(false);
+      setSearching(false);
+      setError(message);
     };
 
     const handleQueueStatus = ({ playersInQueue }: { playersInQueue: number }) => {
@@ -49,13 +63,19 @@ export default function QuickPlay() {
     socket.on('matchmaking_found', handleMatchFound);
     socket.on('matchmaking_started', handleMatchmakingStarted);
     socket.on('matchmaking_cancelled', handleMatchmakingCancelled);
+    socket.on('error', handleError);
     socket.on('queue_status', handleQueueStatus);
 
     return () => {
       socket.off('matchmaking_found', handleMatchFound);
       socket.off('matchmaking_started', handleMatchmakingStarted);
       socket.off('matchmaking_cancelled', handleMatchmakingCancelled);
+      socket.off('error', handleError);
       socket.off('queue_status', handleQueueStatus);
+      if (connectHandlerRef.current) {
+        socket.off('connect', connectHandlerRef.current);
+        connectHandlerRef.current = null;
+      }
       if (socket.connected) {
         socket.emit('cancel_matchmaking');
       }
@@ -80,22 +100,35 @@ export default function QuickPlay() {
   }, [searching]);
 
   const handleFindGame = () => {
+    if (searching || requestPending) return;
+
     connectSocket();
+    setRequestPending(true);
+    setError(null);
+
     const emitSearch = () => {
+      connectHandlerRef.current = null;
       socket.emit('find_game', {
         timeControl: { initial: selectedTime.initial, increment: selectedTime.increment },
       });
     };
+
     if (socket.connected) {
       emitSearch();
     } else {
+      connectHandlerRef.current = emitSearch;
       socket.once('connect', emitSearch);
     }
   };
 
   const handleCancel = () => {
+    if (connectHandlerRef.current) {
+      socket.off('connect', connectHandlerRef.current);
+      connectHandlerRef.current = null;
+    }
     socket.emit('cancel_matchmaking');
     setSearching(false);
+    setRequestPending(false);
   };
 
   const formatSearchTime = (seconds: number) => {
@@ -160,10 +193,17 @@ export default function QuickPlay() {
 
             <button
               onClick={handleFindGame}
-              className="w-full py-3 px-6 bg-accent hover:bg-accent/80 text-white font-bold rounded-lg text-lg transition-colors shadow-md"
+              disabled={requestPending}
+              className="w-full py-3 px-6 bg-accent hover:bg-accent/80 disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold rounded-lg text-lg transition-colors shadow-md"
             >
-              {t('quick.find')}
+              {requestPending ? t('common.sending') : t('quick.find')}
             </button>
+
+            {error && (
+              <p className="mt-3 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+                {error}
+              </p>
+            )}
 
             <button
               onClick={() => navigate('/')}

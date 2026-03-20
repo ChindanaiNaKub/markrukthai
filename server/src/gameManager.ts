@@ -302,6 +302,24 @@ export class GameManager {
     return this.playerGames.get(socketId) || null;
   }
 
+  getBlockingPlayerGame(socketId: string): string | null {
+    const gameId = this.playerGames.get(socketId);
+    if (!gameId) return null;
+
+    const room = this.games.get(gameId);
+    if (!room) {
+      this.playerGames.delete(socketId);
+      return null;
+    }
+
+    if (room.status === 'finished') {
+      this.playerGames.delete(socketId);
+      return null;
+    }
+
+    return gameId;
+  }
+
   setPlayerGame(socketId: string, gameId: string): void {
     this.playerGames.set(socketId, gameId);
     this.touchGame(gameId);

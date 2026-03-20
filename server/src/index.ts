@@ -66,6 +66,7 @@ const SOCKET_RATE_LIMITS = {
   create_game: { windowMs: 60 * 1000, max: 6 },
   join_game: { windowMs: 60 * 1000, max: 20 },
   find_game: { windowMs: 60 * 1000, max: 10 },
+  find_game_ip: { windowMs: 60 * 1000, max: 30 },
   make_move: { windowMs: 10 * 1000, max: 40 },
   control_action: { windowMs: 30 * 1000, max: 15 },
 } as const;
@@ -187,6 +188,26 @@ function enforceSocketRateLimit(
   return true;
 }
 
+function enforceFindGameRateLimit(
+  socket: Socket<ClientToServerEvents, ServerToClientEvents>,
+) {
+  const socketAllowed = enforceSocketRateLimit(socket, 'find_game', ['socket']);
+  if (!socketAllowed) return false;
+
+  const key = `ip:${getSocketIp(socket)}:find_game_ip`;
+  const result = ipRateLimiter.allow(key, SOCKET_RATE_LIMITS.find_game_ip);
+  if (!result.allowed) {
+    monitoring.increment('socket.rateLimited');
+    rejectSocketEvent(socket, 'find_game', 'Too many requests. Please slow down.', {
+      scope: 'ip',
+      retryAfterMs: result.retryAfterMs,
+    });
+    return false;
+  }
+
+  return true;
+}
+
 io.on('connection', (socket) => {
   const socketIp = getSocketIp(socket);
   monitoring.increment('socket.connected');
@@ -199,7 +220,7 @@ io.on('connection', (socket) => {
       rejectSocketEvent(socket, 'create_game', 'Invalid time control.');
       return;
     }
-    if (gameManager.getPlayerGame(socket.id) || matchmaking.isInQueue(socket.id)) {
+    if (gameManager.getBlockingPlayerGame(socket.id) || matchmaking.isInQueue(socket.id)) {
       rejectSocketEvent(socket, 'create_game', 'Leave your current game or queue before creating another game.');
       return;
     }
@@ -220,7 +241,7 @@ io.on('connection', (socket) => {
     }
 
     const { gameId } = payload;
-    const currentGameId = gameManager.getPlayerGame(socket.id);
+    const currentGameId = gameManager.getBlockingPlayerGame(socket.id);
     if (currentGameId && currentGameId !== gameId) {
       rejectSocketEvent(socket, 'join_game', 'Leave your current game before joining another one.');
       return;
@@ -469,13 +490,13 @@ io.on('connection', (socket) => {
   });
 
   socket.on('find_game', (payload) => {
-    if (!enforceSocketRateLimit(socket, 'find_game', ['socket', 'ip'])) return;
+    if (!enforceFindGameRateLimit(socket)) return;
     if (!payload || !isValidTimeControl(payload.timeControl)) {
       monitoring.increment('socket.invalidPayload');
       rejectSocketEvent(socket, 'find_game', 'Invalid time control.');
       return;
     }
-    if (gameManager.getPlayerGame(socket.id)) {
+    if (gameManager.getBlockingPlayerGame(socket.id)) {
       rejectSocketEvent(socket, 'find_game', 'Leave your current game before entering matchmaking.');
       return;
     }
