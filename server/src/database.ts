@@ -10,8 +10,8 @@ const LEGACY_DB_PATH = path.join(DATA_DIR, 'makruk.db');
 const DB_PATH = fs.existsSync(LEGACY_DB_PATH)
   ? LEGACY_DB_PATH
   : path.join(DATA_DIR, 'thaichess.db');
-const TURSO_DATABASE_URL = process.env.TURSO_DATABASE_URL;
-const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN;
+const TURSO_DATABASE_URL = process.env.TURSO_DATABASE_URL?.trim() || undefined;
+const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN?.trim() || undefined;
 
 let db: Client;
 
