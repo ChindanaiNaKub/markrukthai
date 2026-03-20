@@ -111,7 +111,7 @@ export default function BotGame() {
 
   // Keyboard navigation for move history
   useEffect(() => {
-    if (!gameState.gameOver || gameState.moveHistory.length === 0) return;
+    if (gameState.moveHistory.length === 0) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const moveCount = gameState.moveHistory.length;
@@ -500,10 +500,10 @@ export default function BotGame() {
               moves={gameState.moveHistory}
               initialBoard={createInitialBoard()}
               currentMoveIndex={viewMoveIndex ?? undefined}
-              onMoveClick={gameState.gameOver ? handleMoveClick : undefined}
+              onMoveClick={handleMoveClick}
             />
 
-            {gameState.gameOver && gameState.moveHistory.length > 0 && (
+            {gameState.moveHistory.length > 0 && (
               <div className="text-center text-xs text-text-dim">
                 Use arrow keys to navigate moves
               </div>
