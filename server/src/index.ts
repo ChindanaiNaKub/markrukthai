@@ -9,6 +9,7 @@ import { MatchmakingQueue, QueueEntry } from './matchmaking';
 import { initDatabase, saveCompletedGame, getRecentGames, getGame as getDbGame, getStats, getGameCount, saveFeedback, getFeedback, getFeedbackCount } from './database';
 import { ServerToClientEvents, ClientToServerEvents, GameRoom } from '../../shared/types';
 import { logError, logInfo, logWarn } from './logger';
+import { MonitoringStore } from './monitoring';
 import { getSocketIp, isValidBoolean, isValidGameId, isValidPosition, isValidTimeControl, SocketRateLimiter } from './security';
 
 const app = express();
@@ -43,6 +44,7 @@ app.use('/api/', apiLimiter);
 // Request logging (lightweight)
 app.use((req, _res, next) => {
   if (req.path.startsWith('/api/') && !req.path.includes('/health')) {
+    monitoring.increment('apiRequests');
     logInfo('api_request', { method: req.method, path: req.path, ip: req.ip });
   }
   next();
@@ -57,6 +59,7 @@ const gameManager = new GameManager();
 const matchmaking = new MatchmakingQueue();
 const socketRateLimiter = new SocketRateLimiter();
 const ipRateLimiter = new SocketRateLimiter();
+const monitoring = new MonitoringStore();
 
 const SOCKET_RATE_LIMITS = {
   create_game: { windowMs: 60 * 1000, max: 6 },
@@ -127,6 +130,7 @@ function tryMatchmakeQueue() {
 
       gameManager.setPlayerGame(whiteId, room.id);
       gameManager.setPlayerGame(blackId, room.id);
+      monitoring.increment('matchmakingMatched');
 
       logInfo('match_found', { whiteId, blackId, gameId: room.id });
 
@@ -146,6 +150,7 @@ function rejectSocketEvent(
   message: string,
   details: Record<string, unknown> = {},
 ) {
+  monitoring.increment('socket.rejected');
   logWarn('socket_event_rejected', {
     socketId: socket.id,
     ip: getSocketIp(socket),
@@ -169,6 +174,7 @@ function enforceSocketRateLimit(
     const result = limiter.allow(key, SOCKET_RATE_LIMITS[event]);
 
     if (!result.allowed) {
+      monitoring.increment('socket.rateLimited');
       rejectSocketEvent(socket, event, 'Too many requests. Please slow down.', {
         scope,
         retryAfterMs: result.retryAfterMs,
@@ -182,11 +188,13 @@ function enforceSocketRateLimit(
 
 io.on('connection', (socket) => {
   const socketIp = getSocketIp(socket);
+  monitoring.increment('socket.connected');
   logInfo('socket_connected', { socketId: socket.id, ip: socketIp });
 
   socket.on('create_game', (payload) => {
     if (!enforceSocketRateLimit(socket, 'create_game', ['socket', 'ip'])) return;
     if (!payload || !isValidTimeControl(payload.timeControl)) {
+      monitoring.increment('socket.invalidPayload');
       rejectSocketEvent(socket, 'create_game', 'Invalid time control.');
       return;
     }
@@ -197,6 +205,7 @@ io.on('connection', (socket) => {
 
     const { timeControl } = payload;
     const room = gameManager.createGame(timeControl);
+    monitoring.increment('gamesCreated');
     logInfo('game_created', { gameId: room.id, socketId: socket.id, timeControl });
     socket.emit('game_created', { gameId: room.id });
   });
@@ -204,6 +213,7 @@ io.on('connection', (socket) => {
   socket.on('join_game', (payload) => {
     if (!enforceSocketRateLimit(socket, 'join_game', ['socket', 'ip'])) return;
     if (!payload || !isValidGameId(payload.gameId)) {
+      monitoring.increment('socket.invalidPayload');
       rejectSocketEvent(socket, 'join_game', 'Invalid game ID.');
       return;
     }
@@ -267,6 +277,7 @@ io.on('connection', (socket) => {
   socket.on('make_move', (payload) => {
     if (!enforceSocketRateLimit(socket, 'make_move')) return;
     if (!payload || !isValidPosition(payload.from) || !isValidPosition(payload.to)) {
+      monitoring.increment('socket.invalidPayload');
       rejectSocketEvent(socket, 'make_move', 'Invalid move payload.');
       return;
     }
@@ -301,6 +312,7 @@ io.on('connection', (socket) => {
 
     if (room.gameState.gameOver) {
       const reason = room.gameState.resultReason ?? 'draw';
+      monitoring.increment('gamesFinished');
 
       void saveGameToDb(room, reason);
 
@@ -329,6 +341,7 @@ io.on('connection', (socket) => {
     const room = gameManager.resign(gameId, socket.id);
     if (!room) return;
 
+    monitoring.increment('gamesFinished');
     void saveGameToDb(room, 'resignation');
 
     if (room.white) {
@@ -397,6 +410,7 @@ io.on('connection', (socket) => {
   socket.on('respond_draw', (payload) => {
     if (!enforceSocketRateLimit(socket, 'control_action')) return;
     if (!payload || !isValidBoolean(payload.accept)) {
+      monitoring.increment('socket.invalidPayload');
       rejectSocketEvent(socket, 'respond_draw', 'Invalid draw response.');
       return;
     }
@@ -409,6 +423,7 @@ io.on('connection', (socket) => {
     if (!room) return;
 
     if (accept) {
+      monitoring.increment('gamesFinished');
       void saveGameToDb(room, 'draw_agreement');
 
       if (room.white) {
@@ -455,6 +470,7 @@ io.on('connection', (socket) => {
   socket.on('find_game', (payload) => {
     if (!enforceSocketRateLimit(socket, 'find_game', ['socket', 'ip'])) return;
     if (!payload || !isValidTimeControl(payload.timeControl)) {
+      monitoring.increment('socket.invalidPayload');
       rejectSocketEvent(socket, 'find_game', 'Invalid time control.');
       return;
     }
@@ -468,6 +484,7 @@ io.on('connection', (socket) => {
     }
 
     const { timeControl } = payload;
+    monitoring.increment('matchmakingStarted');
     logInfo('matchmaking_started', { socketId: socket.id, timeControl });
 
     matchmaking.addToQueue(socket.id, timeControl);
@@ -487,6 +504,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     socketRateLimiter.clearPrefix(`socket:${socket.id}:`);
+    monitoring.increment('socket.disconnected');
     logInfo('socket_disconnected', { socketId: socket.id, ip: socketIp });
     const removedFromQueue = matchmaking.removeFromQueue(socket.id);
     if (removedFromQueue) {
@@ -563,6 +581,7 @@ app.post('/api/client-errors', (req, res) => {
     return;
   }
 
+  monitoring.increment('clientErrors');
   logError('client_error', new Error(message), {
     source: typeof source === 'string' ? source : 'unknown',
     stack: typeof stack === 'string' ? stack : undefined,
@@ -579,10 +598,16 @@ app.post('/api/client-errors', (req, res) => {
 app.get('/api/health', (_req, res) => {
   const uptime = Math.floor((Date.now() - startTime) / 1000);
   const connectedPlayers = io.engine.clientsCount;
+  const gameCounts = gameManager.getGameCounts();
+  const queueSize = matchmaking.getQueueSize();
   res.json({
     status: 'ok',
     uptime,
     connectedPlayers,
+    activeGames: gameCounts.playing,
+    rooms: gameCounts,
+    queueSize,
+    counters: monitoring.snapshot(),
     version: process.env.npm_package_version || '1.0.0',
     timestamp: new Date().toISOString(),
   });
@@ -632,10 +657,12 @@ app.get('*', (_req, res) => {
 
 const PORT = process.env.PORT || 3000;
 process.on('uncaughtException', (error) => {
+  monitoring.increment('uncaughtExceptions');
   logError('uncaught_exception', error);
 });
 
 process.on('unhandledRejection', (reason) => {
+  monitoring.increment('unhandledRejections');
   logError('unhandled_rejection', reason);
 });
 

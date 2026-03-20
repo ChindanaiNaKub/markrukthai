@@ -279,6 +279,25 @@ export class GameManager {
     return this.games.get(gameId) || null;
   }
 
+  getGameCounts() {
+    let waiting = 0;
+    let playing = 0;
+    let finished = 0;
+
+    for (const room of this.games.values()) {
+      if (room.status === 'waiting') waiting += 1;
+      if (room.status === 'playing') playing += 1;
+      if (room.status === 'finished') finished += 1;
+    }
+
+    return {
+      total: this.games.size,
+      waiting,
+      playing,
+      finished,
+    };
+  }
+
   getPlayerGame(socketId: string): string | null {
     return this.playerGames.get(socketId) || null;
   }
