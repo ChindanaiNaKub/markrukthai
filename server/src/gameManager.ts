@@ -9,6 +9,7 @@ export class GameManager {
   private games: Map<string, GameRoom> = new Map();
   private playerGames: Map<string, string> = new Map(); // socketId -> gameId
   private clockIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private static readonly CLOCK_TICK_MS = 500;
 
   createGame(timeControl: TimeControl): GameRoom {
     const id = uuidv4().slice(0, 8);
@@ -287,7 +288,7 @@ export class GameManager {
       }
 
       onTick(room);
-    }, 100);
+    }, GameManager.CLOCK_TICK_MS);
 
     this.clockIntervals.set(gameId, interval);
   }
