@@ -6,11 +6,12 @@ import path from 'path';
 import rateLimit from 'express-rate-limit';
 import { GameManager } from './gameManager';
 import { MatchmakingQueue, QueueEntry } from './matchmaking';
-import { initDatabase, saveCompletedGame, getRecentGames, getGame as getDbGame, getStats, getGameCount, saveFeedback, getFeedback, getFeedbackCount } from './database';
+import { initDatabase, saveCompletedGame, getRecentGames, getGame as getDbGame, getStats, getGameCount, saveFeedback, getFeedbackCount, getFeedbackForAdmin, moderateFeedback, updateUsername } from './database';
 import { ServerToClientEvents, ClientToServerEvents, GameRoom } from '../../shared/types';
 import { logError, logInfo, logWarn } from './logger';
 import { MonitoringStore } from './monitoring';
 import { getSocketIp, isValidBoolean, isValidGameId, isValidPosition, isValidTimeControl, SocketRateLimiter } from './security';
+import { clearSessionCookie, getAuthenticatedUser, isValidEmail, isValidUsername, issueLoginCode, logoutRequest, normalizeEmail, normalizeUsername, setSessionCookie, verifyLoginCode } from './auth';
 
 const app = express();
 const httpServer = createServer(app);
@@ -525,6 +526,26 @@ io.on('connection', (socket) => {
 
 // --- REST API ---
 
+async function requireUser(req: express.Request, res: express.Response) {
+  const user = await getAuthenticatedUser(req);
+  if (!user) {
+    clearSessionCookie(res);
+    res.status(401).json({ error: 'Authentication required.' });
+    return null;
+  }
+  return user;
+}
+
+async function requireAdmin(req: express.Request, res: express.Response) {
+  const user = await requireUser(req, res);
+  if (!user) return null;
+  if (user.role !== 'admin') {
+    res.status(403).json({ error: 'Admin access required.' });
+    return null;
+  }
+  return user;
+}
+
 app.get('/api/game/:id', async (req, res) => {
   // Check live games first
   const room = gameManager.getGame(req.params.id);
@@ -571,6 +592,84 @@ app.get('/api/games/recent', async (_req, res) => {
 app.get('/api/stats', async (_req, res) => {
   const stats = await getStats();
   res.json(stats);
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts. Please try again later.' },
+});
+
+app.get('/api/auth/me', async (req, res) => {
+  const user = await getAuthenticatedUser(req);
+  if (!user) {
+    clearSessionCookie(res);
+    res.json({ user: null });
+    return;
+  }
+
+  res.json({ user });
+});
+
+app.post('/api/auth/request-code', authLimiter, async (req, res) => {
+  const email = normalizeEmail(String(req.body?.email || ''));
+  if (!isValidEmail(email)) {
+    res.status(400).json({ error: 'Please enter a valid email address.' });
+    return;
+  }
+
+  try {
+    await issueLoginCode(email, req.ip);
+    res.json({ ok: true });
+  } catch (error) {
+    logError('auth_request_code_failed', error, { email });
+    res.status(503).json({ error: 'Login email is not configured yet.' });
+  }
+});
+
+app.post('/api/auth/verify-code', authLimiter, async (req, res) => {
+  const email = normalizeEmail(String(req.body?.email || ''));
+  const code = String(req.body?.code || '').trim();
+
+  if (!isValidEmail(email) || !/^\d{6}$/.test(code)) {
+    res.status(400).json({ error: 'Invalid email or code.' });
+    return;
+  }
+
+  const result = await verifyLoginCode(email, code);
+  if (!result.ok) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+
+  await setSessionCookie(res, result.user.id);
+  res.json({ ok: true, user: result.user });
+});
+
+app.post('/api/auth/logout', async (req, res) => {
+  await logoutRequest(req, res);
+  res.json({ ok: true });
+});
+
+app.patch('/api/auth/profile', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+
+  const username = normalizeUsername(String(req.body?.username || ''));
+  if (!isValidUsername(username)) {
+    res.status(400).json({ error: 'Username must be 3-20 characters using letters, numbers, or underscores.' });
+    return;
+  }
+
+  const updated = await updateUsername(user.id, username);
+  if (!updated) {
+    res.status(400).json({ error: 'Username is unavailable.' });
+    return;
+  }
+
+  res.json({ ok: true, user: updated });
 });
 
 app.post('/api/client-errors', (req, res) => {
@@ -620,12 +719,15 @@ const feedbackLimiter = rateLimit({
   message: { error: 'Too many feedback submissions. Please try again later.' },
 });
 
-app.get('/api/feedback', async (_req, res) => {
-  const page = parseInt(_req.query.page as string) || 0;
-  const limit = Math.min(parseInt(_req.query.limit as string) || 20, 50);
-  const type = (_req.query.type as string) || undefined;
+app.get('/api/feedback', async (req, res) => {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+
+  const page = parseInt(req.query.page as string) || 0;
+  const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
+  const type = (req.query.type as string) || undefined;
   const [feedback, total] = await Promise.all([
-    getFeedback(limit, page * limit, type),
+    getFeedbackForAdmin(limit, page * limit, type),
     getFeedbackCount(type),
   ]);
   res.json({ feedback, total, page, limit });
@@ -643,10 +745,31 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
     page: page || 'unknown',
     userAgent: userAgent || req.headers['user-agent'] || 'unknown',
     ip: req.ip,
+    userId: (await getAuthenticatedUser(req))?.id ?? null,
     timestamp: new Date().toISOString(),
   };
   logInfo('feedback_received', { feedback });
   await saveFeedback(feedback);
+  res.json({ ok: true });
+});
+
+app.delete('/api/feedback/:id', async (req, res) => {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+
+  const feedbackId = Number(req.params.id);
+  if (!Number.isInteger(feedbackId) || feedbackId <= 0) {
+    res.status(400).json({ error: 'Invalid feedback ID.' });
+    return;
+  }
+
+  const note = typeof req.body?.note === 'string' ? req.body.note.slice(0, 500) : undefined;
+  const ok = await moderateFeedback(feedbackId, admin.id, note);
+  if (!ok) {
+    res.status(500).json({ error: 'Failed to moderate feedback.' });
+    return;
+  }
+
   res.json({ ok: true });
 });
 

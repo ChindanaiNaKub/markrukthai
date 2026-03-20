@@ -15,6 +15,15 @@ const TURSO_AUTH_TOKEN = process.env.TURSO_AUTH_TOKEN?.trim() || undefined;
 
 let db: Client;
 
+async function ensureColumn(table: string, column: string, definition: string) {
+  const result = await db.execute(`PRAGMA table_info(${table})`);
+  const hasColumn = result.rows.some((row) => String(row.name) === column);
+
+  if (!hasColumn) {
+    await db.execute(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
 function getDatabaseConfig() {
   if (TURSO_DATABASE_URL) {
     return {
@@ -72,11 +81,54 @@ async function runSchemaMigration() {
         created_at INTEGER DEFAULT (unixepoch())
       )
     `,
+    `
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        username TEXT UNIQUE,
+        role TEXT NOT NULL DEFAULT 'user',
+        created_at INTEGER DEFAULT (unixepoch()),
+        updated_at INTEGER DEFAULT (unixepoch()),
+        last_login_at INTEGER
+      )
+    `,
+    `
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL UNIQUE,
+        expires_at INTEGER NOT NULL,
+        created_at INTEGER DEFAULT (unixepoch()),
+        last_seen_at INTEGER DEFAULT (unixepoch())
+      )
+    `,
+    'CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)',
+    'CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)',
+    `
+      CREATE TABLE IF NOT EXISTS login_codes (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        code_hash TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        consumed_at INTEGER,
+        requested_ip TEXT,
+        created_at INTEGER DEFAULT (unixepoch())
+      )
+    `,
+    'CREATE INDEX IF NOT EXISTS idx_login_codes_email ON login_codes(email)',
+    'CREATE INDEX IF NOT EXISTS idx_login_codes_expires_at ON login_codes(expires_at)',
   ];
 
   for (const statement of statements) {
     await db.execute(statement);
   }
+
+  await ensureColumn('feedback', 'visible', 'INTEGER NOT NULL DEFAULT 1');
+  await ensureColumn('feedback', 'deleted_at', 'INTEGER');
+  await ensureColumn('feedback', 'deleted_by', 'TEXT');
+  await ensureColumn('feedback', 'moderation_note', 'TEXT');
+  await ensureColumn('feedback', 'user_id', 'TEXT');
 }
 
 function rowToSavedGame(row: Row): SavedGame {
@@ -105,6 +157,33 @@ function rowToSavedFeedback(row: Row): SavedFeedback {
     user_agent: String(row.user_agent ?? ''),
     ip: String(row.ip ?? ''),
     created_at: Number(row.created_at ?? 0),
+    visible: Number(row.visible ?? 1),
+    deleted_at: row.deleted_at === null || row.deleted_at === undefined ? null : Number(row.deleted_at),
+    deleted_by: row.deleted_by === null || row.deleted_by === undefined ? null : String(row.deleted_by),
+    moderation_note: row.moderation_note === null || row.moderation_note === undefined ? null : String(row.moderation_note),
+    user_id: row.user_id === null || row.user_id === undefined ? null : String(row.user_id),
+  };
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  username: string | null;
+  role: 'user' | 'admin';
+  created_at: number;
+  updated_at: number;
+  last_login_at: number | null;
+}
+
+function rowToAuthUser(row: Row): AuthUser {
+  return {
+    id: String(row.id),
+    email: String(row.email),
+    username: row.username === null || row.username === undefined ? null : String(row.username),
+    role: String(row.role ?? 'user') === 'admin' ? 'admin' : 'user',
+    created_at: Number(row.created_at ?? 0),
+    updated_at: Number(row.updated_at ?? 0),
+    last_login_at: row.last_login_at === null || row.last_login_at === undefined ? null : Number(row.last_login_at),
   };
 }
 
@@ -241,14 +320,15 @@ export async function saveFeedback(data: {
   page: string;
   userAgent: string;
   ip: string | undefined;
+  userId?: string | null;
 }): Promise<void> {
   try {
     await db.execute({
       sql: `
-        INSERT INTO feedback (type, message, page, user_agent, ip)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO feedback (type, message, page, user_agent, ip, user_id)
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
-      args: [data.type, data.message, data.page, data.userAgent, data.ip || 'unknown'],
+      args: [data.type, data.message, data.page, data.userAgent, data.ip || 'unknown', data.userId ?? null],
     });
   } catch (err) {
     logError('database_save_feedback_failed', err, { type: data.type, page: data.page });
@@ -263,6 +343,11 @@ export interface SavedFeedback {
   user_agent: string;
   ip: string;
   created_at: number;
+  visible?: number;
+  deleted_at?: number | null;
+  deleted_by?: string | null;
+  moderation_note?: string | null;
+  user_id?: string | null;
 }
 
 export async function getFeedback(limit: number = 20, offset: number = 0, type?: string): Promise<SavedFeedback[]> {
@@ -270,8 +355,9 @@ export async function getFeedback(limit: number = 20, offset: number = 0, type?:
     const result = type && type !== 'all'
       ? await db.execute({
         sql: `
-          SELECT id, type, message, page, user_agent, ip, created_at FROM feedback
-          WHERE type = ?
+          SELECT id, type, message, page, user_agent, ip, created_at, visible, deleted_at, deleted_by, moderation_note, user_id
+          FROM feedback
+          WHERE visible = 1 AND type = ?
           ORDER BY created_at DESC
           LIMIT ? OFFSET ?
         `,
@@ -279,7 +365,9 @@ export async function getFeedback(limit: number = 20, offset: number = 0, type?:
       })
       : await db.execute({
         sql: `
-          SELECT id, type, message, page, user_agent, ip, created_at FROM feedback
+          SELECT id, type, message, page, user_agent, ip, created_at, visible, deleted_at, deleted_by, moderation_note, user_id
+          FROM feedback
+          WHERE visible = 1
           ORDER BY created_at DESC
           LIMIT ? OFFSET ?
         `,
@@ -297,13 +385,273 @@ export async function getFeedbackCount(type?: string): Promise<number> {
   try {
     const result = type && type !== 'all'
       ? await db.execute({
-        sql: 'SELECT COUNT(*) as count FROM feedback WHERE type = ?',
+        sql: 'SELECT COUNT(*) as count FROM feedback WHERE visible = 1 AND type = ?',
         args: [type],
       })
-      : await db.execute('SELECT COUNT(*) as count FROM feedback');
+      : await db.execute('SELECT COUNT(*) as count FROM feedback WHERE visible = 1');
     return Number(result.rows[0]?.count ?? 0);
   } catch (err) {
     logError('database_get_feedback_count_failed', err, { type: type ?? 'all' });
     return 0;
+  }
+}
+
+export async function getFeedbackForAdmin(limit: number = 20, offset: number = 0, type?: string): Promise<SavedFeedback[]> {
+  try {
+    const result = type && type !== 'all'
+      ? await db.execute({
+        sql: `
+          SELECT id, type, message, page, user_agent, ip, created_at, visible, deleted_at, deleted_by, moderation_note, user_id
+          FROM feedback
+          WHERE visible = 1 AND type = ?
+          ORDER BY created_at DESC
+          LIMIT ? OFFSET ?
+        `,
+        args: [type, limit, offset],
+      })
+      : await db.execute({
+        sql: `
+          SELECT id, type, message, page, user_agent, ip, created_at, visible, deleted_at, deleted_by, moderation_note, user_id
+          FROM feedback
+          WHERE visible = 1
+          ORDER BY created_at DESC
+          LIMIT ? OFFSET ?
+        `,
+        args: [limit, offset],
+      });
+
+    return result.rows.map(rowToSavedFeedback);
+  } catch (err) {
+    logError('database_get_feedback_admin_failed', err, { limit, offset, type: type ?? 'all' });
+    return [];
+  }
+}
+
+export async function moderateFeedback(feedbackId: number, actorUserId: string, note?: string): Promise<boolean> {
+  try {
+    await db.execute({
+      sql: `
+        UPDATE feedback
+        SET visible = 0,
+            deleted_at = unixepoch(),
+            deleted_by = ?,
+            moderation_note = ?
+        WHERE id = ? AND visible = 1
+      `,
+      args: [actorUserId, note ?? null, feedbackId],
+    });
+    return true;
+  } catch (err) {
+    logError('database_moderate_feedback_failed', err, { feedbackId, actorUserId });
+    return false;
+  }
+}
+
+export async function createLoginCode(data: {
+  id: string;
+  email: string;
+  codeHash: string;
+  expiresAt: number;
+  requestedIp?: string;
+}): Promise<void> {
+  try {
+    await db.execute({
+      sql: 'DELETE FROM login_codes WHERE email = ? OR expires_at <= unixepoch() OR consumed_at IS NOT NULL',
+      args: [data.email],
+    });
+    await db.execute({
+      sql: `
+        INSERT INTO login_codes (id, email, code_hash, expires_at, requested_ip)
+        VALUES (?, ?, ?, ?, ?)
+      `,
+      args: [data.id, data.email, data.codeHash, data.expiresAt, data.requestedIp ?? null],
+    });
+  } catch (err) {
+    logError('database_create_login_code_failed', err, { email: data.email });
+    throw err;
+  }
+}
+
+export async function getLoginCodeByEmail(email: string): Promise<{
+  id: string;
+  email: string;
+  code_hash: string;
+  expires_at: number;
+  attempts: number;
+  consumed_at: number | null;
+} | null> {
+  try {
+    const result = await db.execute({
+      sql: `
+        SELECT id, email, code_hash, expires_at, attempts, consumed_at
+        FROM login_codes
+        WHERE email = ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      args: [email],
+    });
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      id: String(row.id),
+      email: String(row.email),
+      code_hash: String(row.code_hash),
+      expires_at: Number(row.expires_at),
+      attempts: Number(row.attempts ?? 0),
+      consumed_at: row.consumed_at === null || row.consumed_at === undefined ? null : Number(row.consumed_at),
+    };
+  } catch (err) {
+    logError('database_get_login_code_failed', err, { email });
+    return null;
+  }
+}
+
+export async function markLoginCodeAttempt(id: string): Promise<void> {
+  try {
+    await db.execute({
+      sql: 'UPDATE login_codes SET attempts = attempts + 1 WHERE id = ?',
+      args: [id],
+    });
+  } catch (err) {
+    logError('database_mark_login_code_attempt_failed', err, { id });
+  }
+}
+
+export async function consumeLoginCode(id: string): Promise<void> {
+  try {
+    await db.execute({
+      sql: 'UPDATE login_codes SET consumed_at = unixepoch() WHERE id = ?',
+      args: [id],
+    });
+  } catch (err) {
+    logError('database_consume_login_code_failed', err, { id });
+  }
+}
+
+export async function upsertUserByEmail(data: {
+  id: string;
+  email: string;
+  role: 'user' | 'admin';
+}): Promise<AuthUser | null> {
+  try {
+    await db.execute({
+      sql: `
+        INSERT INTO users (id, email, role, last_login_at)
+        VALUES (?, ?, ?, unixepoch())
+        ON CONFLICT(email) DO UPDATE SET
+          role = excluded.role,
+          updated_at = unixepoch(),
+          last_login_at = unixepoch()
+      `,
+      args: [data.id, data.email, data.role],
+    });
+    return await getUserByEmail(data.email);
+  } catch (err) {
+    logError('database_upsert_user_failed', err, { email: data.email });
+    return null;
+  }
+}
+
+export async function getUserByEmail(email: string): Promise<AuthUser | null> {
+  try {
+    const result = await db.execute({
+      sql: 'SELECT * FROM users WHERE email = ? LIMIT 1',
+      args: [email],
+    });
+    const row = result.rows[0];
+    return row ? rowToAuthUser(row) : null;
+  } catch (err) {
+    logError('database_get_user_by_email_failed', err, { email });
+    return null;
+  }
+}
+
+export async function getUserById(id: string): Promise<AuthUser | null> {
+  try {
+    const result = await db.execute({
+      sql: 'SELECT * FROM users WHERE id = ? LIMIT 1',
+      args: [id],
+    });
+    const row = result.rows[0];
+    return row ? rowToAuthUser(row) : null;
+  } catch (err) {
+    logError('database_get_user_by_id_failed', err, { id });
+    return null;
+  }
+}
+
+export async function updateUsername(userId: string, username: string): Promise<AuthUser | null> {
+  try {
+    await db.execute({
+      sql: 'UPDATE users SET username = ?, updated_at = unixepoch() WHERE id = ?',
+      args: [username, userId],
+    });
+    return await getUserById(userId);
+  } catch (err) {
+    logError('database_update_username_failed', err, { userId });
+    return null;
+  }
+}
+
+export async function createSession(data: {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: number;
+}): Promise<void> {
+  try {
+    await db.execute({
+      sql: 'DELETE FROM sessions WHERE user_id = ? OR expires_at <= unixepoch()',
+      args: [data.userId],
+    });
+    await db.execute({
+      sql: `
+        INSERT INTO sessions (id, user_id, token_hash, expires_at)
+        VALUES (?, ?, ?, ?)
+      `,
+      args: [data.id, data.userId, data.tokenHash, data.expiresAt],
+    });
+  } catch (err) {
+    logError('database_create_session_failed', err, { userId: data.userId });
+    throw err;
+  }
+}
+
+export async function getUserBySessionTokenHash(tokenHash: string): Promise<AuthUser | null> {
+  try {
+    const result = await db.execute({
+      sql: `
+        SELECT users.*
+        FROM sessions
+        INNER JOIN users ON users.id = sessions.user_id
+        WHERE sessions.token_hash = ? AND sessions.expires_at > unixepoch()
+        LIMIT 1
+      `,
+      args: [tokenHash],
+    });
+    const row = result.rows[0];
+    if (!row) return null;
+
+    await db.execute({
+      sql: 'UPDATE sessions SET last_seen_at = unixepoch() WHERE token_hash = ?',
+      args: [tokenHash],
+    });
+
+    return rowToAuthUser(row);
+  } catch (err) {
+    logError('database_get_user_by_session_failed', err);
+    return null;
+  }
+}
+
+export async function deleteSessionByTokenHash(tokenHash: string): Promise<void> {
+  try {
+    await db.execute({
+      sql: 'DELETE FROM sessions WHERE token_hash = ?',
+      args: [tokenHash],
+    });
+  } catch (err) {
+    logError('database_delete_session_failed', err);
   }
 }

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
 import { useTranslation } from '../lib/i18n';
 import Header from './Header';
 
@@ -9,6 +11,7 @@ interface FeedbackEntry {
   page: string;
   user_agent: string;
   created_at: number;
+  visible?: number;
 }
 
 type FilterType = 'all' | 'bug' | 'feature' | 'other';
@@ -20,13 +23,16 @@ const TYPE_STYLES: Record<string, { bg: string; text: string; icon: string }> = 
 };
 
 export default function FeedbackMessagesPage() {
+  const navigate = useNavigate();
   const { t } = useTranslation();
+  const { user, loading: authLoading } = useAuth();
   const [feedback, setFeedback] = useState<FeedbackEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [filter, setFilter] = useState<FilterType>('all');
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [error, setError] = useState('');
 
   const limit = 20;
 
@@ -40,25 +46,64 @@ export default function FeedbackMessagesPage() {
   }
 
   useEffect(() => {
+    if (!authLoading && user?.role !== 'admin') {
+      navigate('/login', { replace: true });
+    }
+  }, [authLoading, navigate, user]);
+
+  useEffect(() => {
+    if (authLoading || user?.role !== 'admin') return;
+
     setLoading(true);
+    setError('');
     const params = new URLSearchParams({ page: String(page), limit: String(limit) });
     if (filter !== 'all') params.set('type', filter);
 
     fetch(`/api/feedback?${params}`)
-      .then(r => r.json())
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || 'Failed to load feedback.');
+        return data;
+      })
       .then(data => {
         setFeedback(data.feedback || []);
         setTotal(data.total || 0);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
-  }, [page, filter]);
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Failed to load feedback.');
+        setLoading(false);
+      });
+  }, [authLoading, filter, page, user]);
 
   useEffect(() => {
     setPage(0);
   }, [filter]);
 
   const totalPages = Math.ceil(total / limit);
+
+  async function handleDelete(feedbackId: number) {
+    const response = await fetch(`/api/feedback/${feedbackId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note: 'Removed by admin' }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to moderate feedback.');
+    }
+
+    setFeedback((current) => current.filter((entry) => entry.id !== feedbackId));
+    setTotal((current) => Math.max(0, current - 1));
+  }
+
+  if (authLoading || user?.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center text-text-dim">
+        Loading moderation...
+      </div>
+    );
+  }
 
   const filterButton = (type: FilterType, label: string) => (
     <button
@@ -97,6 +142,8 @@ export default function FeedbackMessagesPage() {
           <div className="flex justify-center py-12">
             <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
+        ) : error ? (
+          <div className="text-center py-12 text-danger">{error}</div>
         ) : feedback.length === 0 ? (
           <div className="text-center py-12 sm:py-16">
             <div className="text-4xl mb-4">📭</div>
@@ -113,10 +160,12 @@ export default function FeedbackMessagesPage() {
                 return (
                   <div
                     key={item.id}
-                    onClick={() => setExpanded(isExpanded ? null : item.id)}
                     className="bg-surface-alt rounded-xl border border-surface-hover p-4 hover:border-surface-hover/80 transition-all duration-150 cursor-pointer"
                   >
-                    <div className="flex items-start gap-3">
+                    <div
+                      onClick={() => setExpanded(isExpanded ? null : item.id)}
+                      className="flex items-start gap-3"
+                    >
                       <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold ${style.bg} ${style.text}`}>
                         {style.icon} {item.type}
                       </span>
@@ -143,6 +192,21 @@ export default function FeedbackMessagesPage() {
                       <span className="shrink-0 text-text-dim text-xs whitespace-nowrap">
                         {timeAgo(item.created_at)}
                       </span>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <button
+                        onClick={async (event) => {
+                          event.stopPropagation();
+                          try {
+                            await handleDelete(item.id);
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : 'Failed to moderate feedback.');
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-lg border border-danger/40 text-danger text-xs font-medium"
+                      >
+                        Delete
+                      </button>
                     </div>
                   </div>
                 );

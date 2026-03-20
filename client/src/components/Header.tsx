@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
 import { useTranslation } from '../lib/i18n';
 import { usePieceStyle } from '../lib/pieceStyle';
 import PieceSVG from './PieceSVG';
@@ -13,6 +14,7 @@ export default function Header({ active, subtitle, right }: HeaderProps) {
   const navigate = useNavigate();
   const { t, lang, setLang } = useTranslation();
   const { pieceStyle, setPieceStyle } = usePieceStyle();
+  const { user, loading } = useAuth();
 
   const navItem = (key: 'play' | 'puzzles' | 'games' | 'about', path: string, label: string) => (
     <button
@@ -64,6 +66,34 @@ export default function Header({ active, subtitle, right }: HeaderProps) {
           )}
 
           {right}
+
+          {!loading && (
+            user ? (
+              <div className="flex items-center gap-2">
+                {user.role === 'admin' && (
+                  <button
+                    onClick={() => navigate('/feedback')}
+                    className="hidden sm:inline h-7 px-2.5 rounded-md border border-surface-hover/60 bg-surface text-text-dim hover:text-text-bright text-xs font-semibold"
+                  >
+                    Admin
+                  </button>
+                )}
+                <button
+                  onClick={() => navigate('/account')}
+                  className="h-7 px-2.5 rounded-md border border-surface-hover/60 bg-surface text-text-dim hover:text-text-bright text-xs font-semibold"
+                >
+                  {user.username || user.email.split('@')[0]}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => navigate('/login')}
+                className="h-7 px-2.5 rounded-md bg-primary text-white text-xs font-semibold tracking-wide transition-all duration-150 active:scale-95"
+              >
+                Sign In
+              </button>
+            )
+          )}
 
           <label className="hidden sm:flex items-center gap-2 text-xs text-text-dim">
             <span className="uppercase tracking-[0.2em]">Pieces</span>

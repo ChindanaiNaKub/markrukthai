@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+import { AuthProvider } from './lib/auth';
 import { initializeGlobalErrorReporting } from './lib/errorReporting';
 import { I18nProvider } from './lib/i18n';
 import { PieceStyleProvider } from './lib/pieceStyle';
@@ -14,11 +15,13 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <I18nProvider>
-        <PieceStyleProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </PieceStyleProvider>
+        <AuthProvider>
+          <PieceStyleProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </PieceStyleProvider>
+        </AuthProvider>
       </I18nProvider>
     </ErrorBoundary>
   </StrictMode>,
