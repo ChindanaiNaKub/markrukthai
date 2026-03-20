@@ -5,6 +5,7 @@ import { createInitialBoard, getBoardAtMove, getLegalMoves } from '@shared/engin
 import { socket, connectSocket } from '../lib/socket';
 import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound, playGameStartSound } from '../lib/sounds';
 import { useTranslation } from '../lib/i18n';
+import { usePieceStyle } from '../lib/pieceStyle';
 import { useGameInteraction } from '../hooks/useGameInteraction';
 import { BoardErrorBoundary } from './BoardErrorBoundary';
 import Board from './Board';
@@ -23,6 +24,7 @@ export default function GamePage() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { pieceStyle, setPieceStyle } = usePieceStyle();
 
   const [gameState, setGameState] = useState<ClientGameState | null>(null);
   const [playerColor, setPlayerColor] = useState<PieceColor | null>(null);
@@ -388,6 +390,19 @@ export default function GamePage() {
             <h1 className="text-lg font-bold text-text-bright tracking-tight">{t('app.name')}</h1>
           </button>
           <div className="flex items-center gap-2 text-xs sm:text-sm text-text-dim">
+            <label className="hidden sm:flex items-center gap-2">
+              <span className="uppercase tracking-[0.2em] text-[10px] text-text-dim">Pieces</span>
+              <select
+                value={pieceStyle}
+                onChange={(e) => setPieceStyle(e.target.value as 'classic' | 'western' | 'traditional')}
+                className="h-7 rounded-md border border-surface-hover/60 bg-surface px-2 text-xs font-semibold text-text-bright outline-none transition-colors hover:bg-surface-hover"
+                title="Select piece style"
+              >
+                <option value="classic">Current</option>
+                <option value="western">Western</option>
+                <option value="traditional">Makruk</option>
+              </select>
+            </label>
             <span>{t('game.game_label')} <span className="font-mono text-text">{gameId}</span></span>
             <button
               onClick={copyGameLink}
