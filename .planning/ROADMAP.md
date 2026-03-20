@@ -6,7 +6,7 @@
 
 ## Phases
 
-- [x] **Phase 1: Test Foundation** - Establish testing patterns, documentation, and regression prevention (completed 2026-03-20)
+- [ ] **Phase 1: Test Foundation** - Establish testing patterns, documentation, and regression prevention
 - [ ] **Phase 2: Game Engine Tests** - Comprehensive coverage of Makruk rules and move validation
 - [ ] **Phase 3: Component & Server Tests** - UI layer testing and backend validation
 - [ ] **Phase 4: CI/CD & Piece Styles** - Automated quality gates and visual customization
@@ -27,9 +27,10 @@
 3. Regression test coverage exists for previously fixed high-risk bugs
 4. Existing useEffect dependency risks are identified and resolved before merge
 
-**Plans:** 2/2 plans complete
+**Plans:** 3 plans
 - [ ] [01-01-PLAN.md](.planning/phases/01-test-foundation/01-01-PLAN.md) — Configure ESLint with react-hooks exhaustive-deps rule
 - [ ] [01-02-PLAN.md](.planning/phases/01-test-foundation/01-02-PLAN.md) — Create contributor documentation and regression test template
+- [ ] [01-03-PLAN.md](.planning/phases/01-test-foundation/01-03-PLAN.md) — Add root-level lint scripts (gap closure)
 
 ---
 
@@ -95,7 +96,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Test Foundation | 2/2 | Complete   | 2026-03-20 |
+| 1. Test Foundation | 2/3 | In Progress | - |
 | 2. Game Engine Tests | 0/1 | Not started | - |
 | 3. Component & Server Tests | 0/2 | Not started | - |
 | 4. CI/CD & Piece Styles | 0/2 | Not started | - |
