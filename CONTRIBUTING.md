@@ -61,6 +61,179 @@ npm run build
 - Tailwind CSS for styling
 - Descriptive variable names
 - No unnecessary comments (code should be self-explanatory)
+- ESLint with react-hooks exhaustive-deps rule enforced
+
+## Testing
+
+### Running Tests
+
+From the project root or client directory:
+
+```bash
+# Unit and component tests (watch mode)
+npm run test
+
+# Run tests once (without watch)
+npm run test:run
+
+# Run tests with UI
+npm run test:ui
+
+# Generate coverage report
+npm run test:coverage
+
+# E2E tests
+npm run test:e2e
+npm run test:e2e:ui
+```
+
+### Test Structure
+
+Tests are co-located with source code:
+
+- `client/src/test/engine.test.ts` - Game engine logic tests
+- `client/src/test/Board.test.tsx` - Board component tests
+- `client/src/test/a11y.test.tsx` - Accessibility tests
+- `client/src/test/regression/` - Regression tests for fixed bugs
+- `client/e2e/` - End-to-end tests with Playwright
+
+### Test Patterns
+
+**File naming:**
+- Unit tests: `*.test.ts` and `*.test.tsx`
+- E2E tests: `*.spec.ts`
+
+**Test structure:**
+```typescript
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
+
+describe('Component/Feature Name', () => {
+  it('should do something specific', () => {
+    // Arrange
+    const props = { ... };
+
+    // Act
+    render(<Component {...props} />);
+
+    // Assert
+    expect(screen.getByText('something')).toBeInTheDocument();
+  });
+});
+```
+
+### What to Test
+
+**High priority (always test):**
+- Game engine logic (move validation, check/checkmate detection)
+- Component rendering and user interactions
+- Socket.IO event handling and cleanup
+- Accessibility (ARIA labels, keyboard navigation)
+
+**Medium priority:**
+- State management logic
+- Custom hook behavior
+- Edge cases and error handling
+
+**Low priority (optional):**
+- Pure UI components (buttons, icons)
+- Third-party library integrations
+
+### Regression Tests
+
+When fixing a bug, add a regression test to prevent it from recurring:
+
+1. Create test in `client/src/test/regression/`
+2. Use naming: `{bug-name}-{YYYY-MM-DD}.test.ts`
+3. Document: Bug symptoms, root cause, fix date
+4. See `template.test.ts` for examples
+
+## Code Quality
+
+### Linting
+
+Run ESLint before committing:
+
+```bash
+# Client
+cd client && npm run lint
+
+# Server
+cd server && npm run lint
+
+# Auto-fix issues
+npm run lint:fix
+```
+
+### React Hooks Rules
+
+**CRITICAL:** All useEffect/useCallback/useMemo dependencies must be declared.
+
+- ESLint `exhaustive-deps` rule enforces this
+- **Never disable the rule** without team approval
+- Missing dependencies cause stale closures and infinite loops
+
+**Example:**
+```typescript
+// WRONG - missing dependencies
+useEffect(() => {
+  socket.on('game_state', handleGameState);
+  return () => socket.off('game_state', handleGameState);
+}, []); // Missing handleGameState!
+
+// CORRECT - all dependencies declared
+useEffect(() => {
+  socket.on('game_state', handleGameState);
+  return () => socket.off('game_state', handleGameState);
+}, [handleGameState]);
+```
+
+### Socket.IO Cleanup Patterns
+
+**Always cleanup event listeners in useEffect:**
+
+```typescript
+useEffect(() => {
+  const handleEvent = (data) => {
+    // Handle event
+  };
+
+  // Register listener
+  socket.on('event', handleEvent);
+
+  // Cleanup - CRITICAL: pass handler reference
+  return () => {
+    socket.off('event', handleEvent);
+  };
+}, [deps]);
+```
+
+**Anti-patterns to avoid:**
+
+- **Missing cleanup:** Causes memory leaks and duplicate listeners
+- **Cleanup without reference:** `socket.off('event')` removes ALL listeners, including from other components
+- **Listeners inside connect handler:** Creates duplicates on each reconnection
+
+**Correct pattern (from useGameSocket.ts):**
+```typescript
+useEffect(() => {
+  const handleGameState = (gs: ClientGameState) => {
+    setGameState(gs);
+  };
+
+  socket.on('game_state', handleGameState);
+
+  return () => {
+    socket.off('game_state', handleGameState); // Pass reference!
+  };
+}, [gameId, navigate]);
+```
+
+### TypeScript
+
+- Run `npx tsc --noEmit` to check types without building
+- Fix all type errors before committing
+- Use `unknown` instead of `any` for uncertain types
 
 ## Questions?
 
