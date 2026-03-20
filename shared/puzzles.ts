@@ -4,6 +4,8 @@ export interface Puzzle {
   id: number;
   title: string;
   description: string;
+  explanation: string;
+  source: string;
   theme: string;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   toMove: PieceColor;
@@ -24,22 +26,26 @@ export const PUZZLES: Puzzle[] = [
     id: 1,
     title: 'Rua Power',
     description: 'Checkmate the Black Khun using your Rua (Rook).',
+    explanation: 'The rook climbs to the back rank and locks down every escape square while your king keeps the mate net safe.',
+    source: 'Curated mate study',
     theme: 'Checkmate',
     difficulty: 'beginner',
     toMove: 'white',
     board: (function() {
       const b = emptyBoard();
-      b[0][4] = p('K', 'black');
-      b[1][0] = p('K', 'white');
-      b[1][7] = p('R', 'white');
+      b[7][0] = p('K', 'black');
+      b[5][1] = p('K', 'white');
+      b[6][2] = p('R', 'white');
       return b;
     })(),
-    solution: [{ from: { row: 1, col: 7 }, to: { row: 0, col: 7 } }],
+    solution: [{ from: { row: 6, col: 2 }, to: { row: 7, col: 2 } }],
   },
   {
     id: 2,
     title: 'Double Met Mate',
     description: 'Two Met (Queens) can be deadly. Find the mate.',
+    explanation: 'The second Met joins the attack to cover the last safe square and finish the king immediately.',
+    source: 'Curated mate study',
     theme: 'Checkmate',
     difficulty: 'beginner',
     toMove: 'white',
@@ -57,6 +63,8 @@ export const PUZZLES: Puzzle[] = [
     id: 5,
     title: 'Bia Promotion',
     description: 'Promote your Bia (Pawn) to a Met to win.',
+    explanation: 'Push the pawn to the promotion rank. In Makruk that turns the Bia into a promoted Met and upgrades your attack.',
+    source: 'Curated endgame study',
     theme: 'Promotion',
     difficulty: 'beginner',
     toMove: 'white',
@@ -64,10 +72,10 @@ export const PUZZLES: Puzzle[] = [
       const b = emptyBoard();
       b[0][5] = p('K', 'black');
       b[2][5] = p('K', 'white');
-      b[5][4] = p('P', 'white');
+      b[4][4] = p('P', 'white');
       return b;
     })(),
-    solution: [{ from: { row: 5, col: 4 }, to: { row: 6, col: 4 } }],
+    solution: [{ from: { row: 4, col: 4 }, to: { row: 5, col: 4 } }],
   },
 ];
 

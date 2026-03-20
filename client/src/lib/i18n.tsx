@@ -130,6 +130,8 @@ const EN: Record<string, string> = {
   'puzzle.all_puzzles': 'All Puzzles',
   'puzzle.not_found': 'Puzzle not found',
   'puzzle.back': 'Back to Puzzles',
+  'puzzle.lesson': 'Lesson',
+  'puzzle.source': 'Source',
 
   // Puzzle themes
   'theme.Checkmate': 'Checkmate',
@@ -429,6 +431,8 @@ const TH: Record<string, string> = {
   'puzzle.all_puzzles': 'ปริศนาทั้งหมด',
   'puzzle.not_found': 'ไม่พบปริศนา',
   'puzzle.back': 'กลับไปปริศนา',
+  'puzzle.lesson': 'บทเรียน',
+  'puzzle.source': 'ที่มา',
 
   // Puzzle themes
   'theme.Checkmate': 'รุกจน',

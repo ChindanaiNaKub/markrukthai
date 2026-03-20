@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { Position, PieceColor, Move, GameState, Board as BoardType } from '@shared/types';
 import { getLegalMoves, makeMove, isInCheck } from '@shared/engine';
@@ -156,8 +156,14 @@ function PuzzlePlayer() {
   const [currentSolutionStep, setCurrentSolutionStep] = useState(0);
   const [hintUsed, setHintUsed] = useState(false);
   const [showHint, setShowHint] = useState(false);
+  const autoReplyTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (autoReplyTimeoutRef.current !== null) {
+      window.clearTimeout(autoReplyTimeoutRef.current);
+      autoReplyTimeoutRef.current = null;
+    }
+
     if (puzzle) {
       setGameState(createGameStateFromPuzzle(puzzle));
       setSelectedSquare(null);
@@ -167,6 +173,13 @@ function PuzzlePlayer() {
       setHintUsed(false);
       setShowHint(false);
     }
+
+    return () => {
+      if (autoReplyTimeoutRef.current !== null) {
+        window.clearTimeout(autoReplyTimeoutRef.current);
+        autoReplyTimeoutRef.current = null;
+      }
+    };
   }, [puzzleId]);
 
   const markCompleted = useCallback(() => {
@@ -177,8 +190,49 @@ function PuzzlePlayer() {
     }
   }, [puzzleId]);
 
+  const finishPuzzle = useCallback(() => {
+    setStatus('success');
+    markCompleted();
+    playGameOverSound();
+  }, [markCompleted]);
+
+  const queueOpponentReply = useCallback((stateAfterPlayerMove: GameState, nextStep: number) => {
+    if (!puzzle) return;
+
+    if (nextStep >= puzzle.solution.length) {
+      finishPuzzle();
+      return;
+    }
+
+    const replyMove = puzzle.solution[nextStep];
+    autoReplyTimeoutRef.current = window.setTimeout(() => {
+      const replyState = makeMove(stateAfterPlayerMove, replyMove.from, replyMove.to);
+      autoReplyTimeoutRef.current = null;
+
+      if (!replyState) {
+        setStatus('failed');
+        return;
+      }
+
+      setGameState(replyState);
+
+      const lastMove = replyState.moveHistory[replyState.moveHistory.length - 1];
+      if (replyState.isCheck) playCheckSound();
+      else if (lastMove.captured) playCaptureSound();
+      else playMoveSound();
+
+      const nextPlayerStep = nextStep + 1;
+      if (nextPlayerStep >= puzzle.solution.length) {
+        finishPuzzle();
+      } else {
+        setCurrentSolutionStep(nextPlayerStep);
+      }
+    }, 450);
+  }, [finishPuzzle, puzzle]);
+
   const handleSquareClick = useCallback((pos: Position) => {
     if (!gameState || !puzzle || status !== 'playing') return;
+    if (gameState.turn !== puzzle.toMove) return;
 
     const piece = gameState.board[pos.row][pos.col];
     const playerColor = puzzle.toMove;
@@ -207,13 +261,7 @@ function PuzzlePlayer() {
             else playMoveSound();
 
             const nextStep = currentSolutionStep + 1;
-            if (nextStep >= puzzle.solution.length) {
-              setStatus('success');
-              markCompleted();
-              playGameOverSound();
-            } else {
-              setCurrentSolutionStep(nextStep);
-            }
+            queueOpponentReply(newState, nextStep);
           }
         } else {
           setStatus('failed');
@@ -231,10 +279,11 @@ function PuzzlePlayer() {
       setSelectedSquare(null);
       setLegalMoves([]);
     }
-  }, [gameState, puzzle, selectedSquare, legalMoves, status, currentSolutionStep, markCompleted]);
+  }, [gameState, puzzle, selectedSquare, legalMoves, status, currentSolutionStep, queueOpponentReply]);
 
   const handlePieceDrop = useCallback((from: Position, to: Position) => {
     if (!gameState || !puzzle || status !== 'playing') return;
+    if (gameState.turn !== puzzle.toMove) return;
     const piece = gameState.board[from.row][from.col];
     if (!piece || piece.color !== puzzle.toMove) return;
 
@@ -261,22 +310,20 @@ function PuzzlePlayer() {
         else playMoveSound();
 
         const nextStep = currentSolutionStep + 1;
-        if (nextStep >= puzzle.solution.length) {
-          setStatus('success');
-          markCompleted();
-          playGameOverSound();
-        } else {
-          setCurrentSolutionStep(nextStep);
-        }
+        queueOpponentReply(newState, nextStep);
       }
     } else {
       setStatus('failed');
       setSelectedSquare(null);
       setLegalMoves([]);
     }
-  }, [gameState, puzzle, status, currentSolutionStep, markCompleted]);
+  }, [gameState, puzzle, status, currentSolutionStep, queueOpponentReply]);
 
   const handleRetry = () => {
+    if (autoReplyTimeoutRef.current !== null) {
+      window.clearTimeout(autoReplyTimeoutRef.current);
+      autoReplyTimeoutRef.current = null;
+    }
     if (puzzle) {
       setGameState(createGameStateFromPuzzle(puzzle));
       setSelectedSquare(null);
@@ -368,7 +415,7 @@ function PuzzlePlayer() {
                 <Board
                   board={gameState.board}
                   playerColor={puzzle.toMove}
-                  isMyTurn={status === 'playing'}
+                  isMyTurn={status === 'playing' && gameState.turn === puzzle.toMove}
                   legalMoves={legalMoves}
                   selectedSquare={selectedSquare || hintSquare}
                   lastMove={getLastMove()}
@@ -376,7 +423,7 @@ function PuzzlePlayer() {
                   checkSquare={getCheckSquare()}
                   onSquareClick={handleSquareClick}
                   onPieceDrop={handlePieceDrop}
-                  disabled={status !== 'playing'}
+                  disabled={status !== 'playing' || gameState.turn !== puzzle.toMove}
                 />
               </BoardErrorBoundary>
             )}
@@ -400,6 +447,7 @@ function PuzzlePlayer() {
               <div className="flex flex-wrap items-center gap-2 text-xs text-text-dim">
                 <span className="px-2 py-0.5 rounded bg-surface border border-surface-hover">{t('theme.' + puzzle.theme)}</span>
                 <span>{t('puzzle.to_move', { color: colorLabel })}</span>
+                <span className="ml-auto">{t('puzzle.source')}: {puzzle.source}</span>
               </div>
             </div>
 
@@ -420,6 +468,9 @@ function PuzzlePlayer() {
                 <p className="text-primary-light font-bold text-lg">{t('puzzle.correct')}</p>
                 <p className="text-text-dim text-sm">
                   {hintUsed ? t('puzzle.solved_hint') : t('puzzle.solved_clean')}
+                </p>
+                <p className="mt-3 text-left text-sm text-text leading-relaxed">
+                  <span className="font-semibold text-text-bright">{t('puzzle.lesson')}:</span> {puzzle.explanation}
                 </p>
               </div>
             )}
