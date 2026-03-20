@@ -15,7 +15,7 @@
 
 ### Phase 1: Test Foundation
 
-**Goal:** Stabilize the codebase and establish testing patterns to prevent recurring bugs
+**Goal:** Establish testing patterns and guardrails that prevent previously fixed bugs from recurring
 
 **Depends on:** Nothing (first phase)
 
@@ -24,10 +24,12 @@
 **Success Criteria** (what must be TRUE):
 1. ESLint react-hooks exhaustive-deps rule catches dependency issues before code merges
 2. Contributors can reference CONTRIBUTING.md for Socket.IO cleanup patterns and testing guidelines
-3. Regression test suite template exists for documenting recurring bugs
-4. All existing ESLint warnings related to useEffect dependencies are resolved
+3. Regression test coverage exists for previously fixed high-risk bugs
+4. Existing useEffect dependency risks are identified and resolved before merge
 
-**Plans:** TBD
+**Plans:** 2
+- [ ] [01-01-PLAN.md](.planning/phases/01-test-foundation/01-01-PLAN.md) — Configure ESLint with react-hooks exhaustive-deps rule
+- [ ] [01-02-PLAN.md](.planning/phases/01-test-foundation/01-02-PLAN.md) — Create contributor documentation and regression test template
 
 ---
 
@@ -93,7 +95,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Test Foundation | 0/2 | Not started | - |
+| 1. Test Foundation | 0/2 | Planned | - |
 | 2. Game Engine Tests | 0/1 | Not started | - |
 | 3. Component & Server Tests | 0/2 | Not started | - |
 | 4. CI/CD & Piece Styles | 0/2 | Not started | - |
