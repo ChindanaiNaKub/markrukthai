@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import type { Move, Board, PieceColor, TimeControl } from '../../shared/types';
+import { logError, logInfo } from './logger';
 
 // Compiled to server/dist/server/src — repo data/ is four levels up
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '../../../../data');
@@ -48,7 +49,7 @@ export function initDatabase(): void {
     );
   `);
 
-  console.log('Database initialized at', DB_PATH);
+  logInfo('database_initialized', { path: DB_PATH });
 }
 
 export function saveCompletedGame(data: {
@@ -77,7 +78,7 @@ export function saveCompletedGame(data: {
       data.moveCount,
     );
   } catch (err) {
-    console.error('Failed to save game:', err);
+    logError('database_save_completed_game_failed', err, { gameId: data.id });
   }
 }
 
@@ -106,7 +107,7 @@ export function getRecentGames(limit: number = 20, offset: number = 0): SavedGam
     `);
     return stmt.all(limit, offset) as SavedGame[];
   } catch (err) {
-    console.error('Failed to get recent games:', err);
+    logError('database_get_recent_games_failed', err, { limit, offset });
     return [];
   }
 }
@@ -116,7 +117,7 @@ export function getGame(id: string): SavedGame | null {
     const stmt = db.prepare('SELECT * FROM games WHERE id = ?');
     return (stmt.get(id) as SavedGame) || null;
   } catch (err) {
-    console.error('Failed to get game:', err);
+    logError('database_get_game_failed', err, { gameId: id });
     return null;
   }
 }
@@ -162,7 +163,7 @@ export function saveFeedback(data: {
     `);
     stmt.run(data.type, data.message, data.page, data.userAgent, data.ip || 'unknown');
   } catch (err) {
-    console.error('Failed to save feedback:', err);
+    logError('database_save_feedback_failed', err, { type: data.type, page: data.page });
   }
 }
 
@@ -194,7 +195,7 @@ export function getFeedback(limit: number = 20, offset: number = 0, type?: strin
     `);
     return stmt.all(limit, offset) as SavedFeedback[];
   } catch (err) {
-    console.error('Failed to get feedback:', err);
+    logError('database_get_feedback_failed', err, { limit, offset, type: type ?? 'all' });
     return [];
   }
 }

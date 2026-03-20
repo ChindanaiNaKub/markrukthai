@@ -1,4 +1,5 @@
 import { Component, type ReactNode } from 'react';
+import { reportClientError } from '../lib/errorReporting';
 
 interface Props {
   children: ReactNode;
@@ -21,6 +22,10 @@ export class AsyncErrorBoundary extends Component<Props, State> {
       ? event.reason
       : new Error(String(event.reason));
     this.setState({ hasError: true, error });
+    void reportClientError({
+      source: 'unhandled_rejection',
+      error,
+    });
   };
 
   constructor(props: Props) {
@@ -42,6 +47,11 @@ export class AsyncErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('[AsyncErrorBoundary] Caught error:', error, errorInfo);
+    void reportClientError({
+      source: 'async_error_boundary',
+      error,
+      componentStack: errorInfo.componentStack ?? undefined,
+    });
   }
 
   reset = () => {

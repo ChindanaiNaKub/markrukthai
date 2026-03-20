@@ -8,6 +8,7 @@ import { GameManager } from './gameManager';
 import { MatchmakingQueue, QueueEntry } from './matchmaking';
 import { initDatabase, saveCompletedGame, getRecentGames, getGame as getDbGame, getStats, getGameCount, saveFeedback, getFeedback, getFeedbackCount } from './database';
 import { ServerToClientEvents, ClientToServerEvents, GameRoom } from '../../shared/types';
+import { logError, logInfo } from './logger';
 
 const app = express();
 const httpServer = createServer(app);
@@ -41,7 +42,7 @@ app.use('/api/', apiLimiter);
 // Request logging (lightweight)
 app.use((req, _res, next) => {
   if (req.path.startsWith('/api/') && !req.path.includes('/health')) {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+    logInfo('api_request', { method: req.method, path: req.path, ip: req.ip });
   }
   next();
 });
@@ -113,7 +114,7 @@ function tryMatchmakeQueue() {
       gameManager.setPlayerGame(whiteId, room.id);
       gameManager.setPlayerGame(blackId, room.id);
 
-      console.log(`Match found: ${whiteId} vs ${blackId} -> game ${room.id}`);
+      logInfo('match_found', { whiteId, blackId, gameId: room.id });
 
       io.to(whiteId).emit('matchmaking_found', { gameId: room.id, color: 'white' });
       io.to(blackId).emit('matchmaking_found', { gameId: room.id, color: 'black' });
@@ -126,11 +127,11 @@ function tryMatchmakeQueue() {
 }
 
 io.on('connection', (socket) => {
-  console.log(`Player connected: ${socket.id}`);
+  logInfo('socket_connected', { socketId: socket.id });
 
   socket.on('create_game', ({ timeControl }) => {
     const room = gameManager.createGame(timeControl);
-    console.log(`Game created: ${room.id}`);
+    logInfo('game_created', { gameId: room.id, socketId: socket.id, timeControl });
     socket.emit('game_created', { gameId: room.id });
   });
 
@@ -352,7 +353,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('find_game', ({ timeControl }) => {
-    console.log(`Player ${socket.id} searching for game: ${timeControl.initial}+${timeControl.increment}`);
+    logInfo('matchmaking_started', { socketId: socket.id, timeControl });
 
     matchmaking.addToQueue(socket.id, timeControl);
     socket.emit('matchmaking_started');
@@ -363,14 +364,14 @@ io.on('connection', (socket) => {
   socket.on('cancel_matchmaking', () => {
     const removed = matchmaking.removeFromQueue(socket.id);
     if (removed) {
-      console.log(`Player ${socket.id} cancelled matchmaking`);
+      logInfo('matchmaking_cancelled', { socketId: socket.id });
       socket.emit('matchmaking_cancelled');
       broadcastQueueStatus();
     }
   });
 
   socket.on('disconnect', () => {
-    console.log(`Player disconnected: ${socket.id}`);
+    logInfo('socket_disconnected', { socketId: socket.id });
     const removedFromQueue = matchmaking.removeFromQueue(socket.id);
     if (removedFromQueue) {
       broadcastQueueStatus();
@@ -436,6 +437,26 @@ app.get('/api/stats', (_req, res) => {
   res.json(stats);
 });
 
+app.post('/api/client-errors', (req, res) => {
+  const { source, message, stack, componentStack, url, userAgent } = req.body ?? {};
+
+  if (!message || typeof message !== 'string') {
+    res.status(400).json({ error: 'Invalid client error payload' });
+    return;
+  }
+
+  logError('client_error', new Error(message), {
+    source: typeof source === 'string' ? source : 'unknown',
+    stack: typeof stack === 'string' ? stack : undefined,
+    componentStack: typeof componentStack === 'string' ? componentStack : undefined,
+    url: typeof url === 'string' ? url : undefined,
+    userAgent: typeof userAgent === 'string' ? userAgent : req.headers['user-agent'],
+    ip: req.ip,
+  });
+
+  res.status(204).end();
+});
+
 // Health check — used by hosting platforms to know the server is alive
 app.get('/api/health', (_req, res) => {
   const uptime = Math.floor((Date.now() - startTime) / 1000);
@@ -479,7 +500,7 @@ app.post('/api/feedback', feedbackLimiter, (req, res) => {
     ip: req.ip,
     timestamp: new Date().toISOString(),
   };
-  console.log('[FEEDBACK]', JSON.stringify(feedback));
+  logInfo('feedback_received', { feedback });
   saveFeedback(feedback);
   res.json({ ok: true });
 });
@@ -490,7 +511,17 @@ app.get('*', (_req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+process.on('uncaughtException', (error) => {
+  logError('uncaught_exception', error);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logError('unhandled_rejection', reason);
+});
+
 httpServer.listen(PORT, () => {
-  console.log(`ThaiChess server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  logInfo('server_started', {
+    port: Number(PORT),
+    environment: process.env.NODE_ENV || 'development',
+  });
 });
