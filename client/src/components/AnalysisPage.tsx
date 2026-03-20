@@ -418,6 +418,7 @@ export default function AnalysisPage() {
                   <AccuracyCard color="white" accuracy={analysis.whiteAccuracy} summary={analysis.summary.white} t={t} />
                   <AccuracyCard color="black" accuracy={analysis.blackAccuracy} summary={analysis.summary.black} t={t} />
                 </div>
+                <p className="mt-3 text-xs text-text-dim">{t('analysis.note')}</p>
               </div>
             )}
 
