@@ -577,6 +577,13 @@ app.get('/api/game/:id', async (req, res) => {
       hasWhite: !!room.white,
       hasBlack: !!room.black,
       timeControl: room.timeControl,
+      result: room.gameState.winner || (room.gameState.gameOver ? 'draw' : null),
+      resultReason: room.gameState.resultReason || '',
+      moves: room.gameState.moveHistory,
+      finalBoard: room.gameState.board,
+      moveCount: room.gameState.moveCount,
+      createdAt: Math.floor(room.createdAt / 1000),
+      finishedAt: room.status === 'finished' ? Math.floor(Date.now() / 1000) : null,
     });
     return;
   }
