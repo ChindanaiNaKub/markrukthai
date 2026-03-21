@@ -30,8 +30,8 @@ describe('Game Engine', () => {
       expect(board[0][0]?.type).toBe('R');
       expect(board[0][1]?.type).toBe('N');
       expect(board[0][2]?.type).toBe('S');
-      expect(board[0][3]?.type).toBe('M');
-      expect(board[0][4]?.type).toBe('K');
+      expect(board[0][3]?.type).toBe('K');
+      expect(board[0][4]?.type).toBe('M');
       expect(board[0][5]?.type).toBe('S');
       expect(board[0][6]?.type).toBe('N');
       expect(board[0][7]?.type).toBe('R');
@@ -50,8 +50,8 @@ describe('Game Engine', () => {
       expect(board[7][0]?.type).toBe('R');
       expect(board[7][1]?.type).toBe('N');
       expect(board[7][2]?.type).toBe('S');
-      expect(board[7][3]?.type).toBe('K'); // Black's K is on col 3
-      expect(board[7][4]?.type).toBe('M');
+      expect(board[7][3]?.type).toBe('M');
+      expect(board[7][4]?.type).toBe('K');
       expect(board[7][5]?.type).toBe('S');
       expect(board[7][6]?.type).toBe('N');
       expect(board[7][7]?.type).toBe('R');
@@ -77,11 +77,11 @@ describe('Game Engine', () => {
   describe('getLegalMoves - King (K)', () => {
     it('should move 1 square in any direction', () => {
       const board = createInitialBoard();
-      const kingMoves = getLegalMoves(board, { row: 0, col: 4 }); // White King
+      const kingMoves = getLegalMoves(board, { row: 0, col: 3 }); // White King
 
       // King can move to row 1, cols 3,4,5 (if not in check)
       expect(kingMoves.length).toBeGreaterThan(0);
-      expect(kingMoves).toContainEqual({ row: 1, col: 4 });
+      expect(kingMoves).toContainEqual({ row: 1, col: 3 });
     });
 
     it('should not move into check', () => {

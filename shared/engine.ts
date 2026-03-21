@@ -4,14 +4,14 @@ export function createInitialBoard(): Board {
   const board: Board = Array(8).fill(null).map(() => Array(8).fill(null));
 
   // White pieces (rows 0-2)
-  const whiteBackRank: PieceType[] = ['R', 'N', 'S', 'M', 'K', 'S', 'N', 'R'];
+  const whiteBackRank: PieceType[] = ['R', 'N', 'S', 'K', 'M', 'S', 'N', 'R'];
   for (let col = 0; col < 8; col++) {
     board[0][col] = { type: whiteBackRank[col], color: 'white' };
     board[2][col] = { type: 'P', color: 'white' };
   }
 
   // Black pieces (rows 5-7)
-  const blackBackRank: PieceType[] = ['R', 'N', 'S', 'K', 'M', 'S', 'N', 'R'];
+  const blackBackRank: PieceType[] = ['R', 'N', 'S', 'M', 'K', 'S', 'N', 'R'];
   for (let col = 0; col < 8; col++) {
     board[7][col] = { type: blackBackRank[col], color: 'black' };
     board[5][col] = { type: 'P', color: 'black' };
