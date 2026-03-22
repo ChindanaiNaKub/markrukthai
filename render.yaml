@@ -13,6 +13,8 @@ services:
         value: production
       - key: NODE_VERSION
         value: "22"
+      - key: SITE_URL
+        value: https://thaichess.dev
     # SQLite: default DATA_DIR is ./data at repo root — ephemeral on free web (resets on redeploy).
     # For persistent DB, add a disk in the Render dashboard and set DATA_DIR to the mount path, e.g.:
     # disk:

@@ -2,12 +2,14 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server, type Socket } from 'socket.io';
 import cors from 'cors';
+import fs from 'fs';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
 import { GameManager } from './gameManager';
 import { MatchmakingQueue, QueueEntry } from './matchmaking';
 import { initDatabase, saveCompletedGame, getRecentGames, getGame as getDbGame, getStats, getGameCount, saveFeedback, getFeedbackCount, getFeedbackForAdmin, moderateFeedback, updateUsername } from './database';
 import { ServerToClientEvents, ClientToServerEvents, GameRoom } from '../../shared/types';
+import { getIndexablePaths, getPublicSeoRoute } from '../../shared/seo';
 import { logError, logInfo, logWarn } from './logger';
 import { MonitoringStore } from './monitoring';
 import { getSocketIp, isValidBoolean, isValidGameId, isValidPosition, isValidTimeControl, SocketRateLimiter } from './security';
@@ -55,6 +57,66 @@ app.use((req, _res, next) => {
 // Serve static files in production (__dirname = server/dist/server/src when compiled)
 const clientDist = path.join(__dirname, '../../../../client/dist');
 app.use(express.static(clientDist));
+
+function getSiteUrl(req?: express.Request): string {
+  const configuredUrl = process.env.SITE_URL || process.env.PUBLIC_SITE_URL || process.env.APP_URL || process.env.RENDER_EXTERNAL_URL;
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/+$/, '');
+  }
+
+  if (req) {
+    return `${req.protocol}://${req.get('host')}`;
+  }
+
+  return 'https://thaichess.dev';
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function upsertHeadTag(html: string, pattern: RegExp, replacement: string): string {
+  if (pattern.test(html)) {
+    return html.replace(pattern, replacement);
+  }
+
+  return html.replace('</head>', `  ${replacement}\n  </head>`);
+}
+
+function renderSeoHtml(template: string, pathname: string, baseUrl: string): string {
+  const seo = getPublicSeoRoute(pathname, baseUrl);
+  const canonicalUrl = new URL(seo.path, `${baseUrl}/`).toString();
+  const robots = seo.robots ?? 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1';
+  const keywords = seo.keywords?.join(', ');
+  const structuredData = seo.structuredData?.length
+    ? JSON.stringify(seo.structuredData.length === 1 ? seo.structuredData[0] : seo.structuredData).replace(/</g, '\\u003c')
+    : null;
+
+  let html = template;
+  html = html.replace(/<title>.*?<\/title>/s, `<title>${escapeHtml(seo.title)}</title>`);
+  html = upsertHeadTag(html, /<meta\s+name="description"\s+content="[^"]*"\s*\/?>/i, `<meta name="description" content="${escapeHtml(seo.description)}" />`);
+  html = upsertHeadTag(html, /<meta\s+name="robots"\s+content="[^"]*"\s*\/?>/i, `<meta name="robots" content="${escapeHtml(robots)}" />`);
+  html = upsertHeadTag(html, /<meta\s+name="keywords"\s+content="[^"]*"\s*\/?>/i, `<meta name="keywords" content="${escapeHtml(keywords ?? '')}" />`);
+  html = upsertHeadTag(html, /<link\s+rel="canonical"\s+href="[^"]*"\s*\/?>/i, `<link rel="canonical" href="${escapeHtml(canonicalUrl)}" />`);
+  html = upsertHeadTag(html, /<meta\s+property="og:title"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:title" content="${escapeHtml(seo.title)}" />`);
+  html = upsertHeadTag(html, /<meta\s+property="og:description"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:description" content="${escapeHtml(seo.description)}" />`);
+  html = upsertHeadTag(html, /<meta\s+property="og:type"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:type" content="${escapeHtml(seo.type ?? 'website')}" />`);
+  html = upsertHeadTag(html, /<meta\s+property="og:url"\s+content="[^"]*"\s*\/?>/i, `<meta property="og:url" content="${escapeHtml(canonicalUrl)}" />`);
+  html = upsertHeadTag(html, /<meta\s+name="twitter:card"\s+content="[^"]*"\s*\/?>/i, '<meta name="twitter:card" content="summary" />');
+  html = upsertHeadTag(html, /<meta\s+name="twitter:title"\s+content="[^"]*"\s*\/?>/i, `<meta name="twitter:title" content="${escapeHtml(seo.title)}" />`);
+  html = upsertHeadTag(html, /<meta\s+name="twitter:description"\s+content="[^"]*"\s*\/?>/i, `<meta name="twitter:description" content="${escapeHtml(seo.description)}" />`);
+
+  html = html.replace(/\s*<script[^>]*data-seo-server="true"[^>]*>.*?<\/script>/gs, '');
+  if (structuredData) {
+    html = html.replace('</head>', `  <script type="application/ld+json" data-seo-server="true">${structuredData}</script>\n  </head>`);
+  }
+
+  return html;
+}
 
 // Initialize database
 const gameManager = new GameManager();
@@ -352,9 +414,57 @@ app.delete('/api/feedback/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/robots.txt', (req, res) => {
+  const siteUrl = getSiteUrl(req);
+  res.type('text/plain').send([
+    'User-agent: *',
+    'Allow: /',
+    'Disallow: /account',
+    'Disallow: /analysis',
+    'Disallow: /feedback',
+    'Disallow: /game',
+    'Disallow: /login',
+    '',
+    `Sitemap: ${siteUrl}/sitemap.xml`,
+  ].join('\n'));
+});
+
+app.get('/sitemap.xml', (req, res) => {
+  const siteUrl = getSiteUrl(req);
+  const lastmod = new Date().toISOString().slice(0, 10);
+  const urls = getIndexablePaths()
+    .map((pathname) => [
+      '  <url>',
+      `    <loc>${siteUrl}${pathname}</loc>`,
+      `    <lastmod>${lastmod}</lastmod>`,
+      pathname === '/' ? '    <priority>1.0</priority>' : '    <priority>0.8</priority>',
+      '  </url>',
+    ].join('\n'))
+    .join('\n');
+
+  res.type('application/xml').send([
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    urls,
+    '</urlset>',
+  ].join('\n'));
+});
+
 // SPA fallback (must be last)
-app.get('*', (_req, res) => {
-  res.sendFile(path.join(clientDist, 'index.html'));
+app.get('*', (req, res) => {
+  const indexPath = path.join(clientDist, 'index.html');
+
+  try {
+    const template = fs.readFileSync(indexPath, 'utf8');
+    const html = renderSeoHtml(template, req.path, getSiteUrl(req));
+    res.type('html').send(html);
+  } catch (error) {
+    logWarn('spa_fallback_template_read_failed', {
+      path: indexPath,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    res.sendFile(indexPath);
+  }
 });
 
 const PORT = process.env.PORT || 3000;
