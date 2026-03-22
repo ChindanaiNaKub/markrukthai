@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import HomePage from './components/HomePage';
 import FeedbackWidget from './components/FeedbackWidget';
+import { SeoHeadManager } from './lib/seo';
 
 // Lazy load route components for code splitting
 const GamePage = lazy(() => import('./components/GamePage'));
@@ -32,6 +33,7 @@ function RouteFallback() {
 export default function App() {
   return (
     <div className="min-h-screen bg-surface">
+      <SeoHeadManager />
       <a href="#main-content" className="skip-to-content">
         Skip to main content
       </a>
