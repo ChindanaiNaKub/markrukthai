@@ -40,6 +40,7 @@ export interface CountingState {
   countingColor: PieceColor;
   strongerColor: PieceColor;
   currentCount: number;
+  startCount?: number;
   limit: number;
   finalAttackPending: boolean;
 }

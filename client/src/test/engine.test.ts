@@ -364,16 +364,50 @@ describe('Game Engine', () => {
         type: 'pieces_honor',
         countingColor: 'black',
         strongerColor: 'white',
-        currentCount: 3,
+        currentCount: 9,
+        startCount: 3,
         limit: 16,
         finalAttackPending: false,
       };
 
       const started = startCounting(state);
       expect(started?.counting?.active).toBe(true);
+      expect(started?.counting?.currentCount).toBe(3);
 
       const stopped = stopCounting(started!);
       expect(stopped?.counting?.active).toBe(false);
+    });
+
+    it('should keep the original pieces-honor limit after captures', () => {
+      const board: Board = Array(8).fill(null).map(() => Array(8).fill(null));
+      board[0][0] = { type: 'K', color: 'white' };
+      board[1][2] = { type: 'R', color: 'white' };
+      board[7][7] = { type: 'R', color: 'white' };
+      board[2][3] = { type: 'K', color: 'black' };
+
+      const state = createInitialGameState(300000, 300000);
+      state.board = board;
+      state.turn = 'black';
+      state.counting = {
+        active: true,
+        type: 'pieces_honor',
+        countingColor: 'black',
+        strongerColor: 'white',
+        currentCount: 7,
+        startCount: 4,
+        limit: 8,
+        finalAttackPending: false,
+      };
+
+      const newState = makeMove(state, { row: 2, col: 3 }, { row: 1, col: 2 });
+
+      expect(newState?.counting).toMatchObject({
+        type: 'pieces_honor',
+        currentCount: 8,
+        startCount: 4,
+        limit: 8,
+        finalAttackPending: true,
+      });
     });
 
     it('should draw when the active board-honor count reaches the limit', () => {

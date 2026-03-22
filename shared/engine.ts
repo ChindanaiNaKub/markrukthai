@@ -175,6 +175,7 @@ function getBareKingCountingState(board: Board): CountingState | null {
       countingColor,
       strongerColor,
       currentCount,
+      startCount: currentCount,
       limit,
       finalAttackPending: false,
     };
@@ -200,6 +201,7 @@ function getBoardHonorCountingState(board: Board): CountingState | null {
     countingColor,
     strongerColor,
     currentCount: 0,
+    startCount: 0,
     limit: 64,
     finalAttackPending: false,
   };
@@ -230,7 +232,9 @@ function getNextCountingState(previous: CountingState | null, board: Board): Cou
     return {
       ...fresh,
       active: previous.active,
+      startCount: previous.startCount ?? fresh.startCount ?? fresh.currentCount,
       currentCount: previous.currentCount,
+      limit: previous.type === 'pieces_honor' ? previous.limit : fresh.limit,
       finalAttackPending: previous.finalAttackPending,
     };
   }
@@ -263,11 +267,16 @@ export function canStopCounting(state: GameState): boolean {
 export function startCounting(state: GameState): GameState | null {
   if (!canStartCounting(state) || !state.counting) return null;
 
+  const fresh = getInitialCountingState(state.board);
+  const startCount = state.counting.startCount ?? fresh?.startCount ?? fresh?.currentCount ?? state.counting.currentCount;
+
   return {
     ...state,
     counting: {
       ...state.counting,
       active: true,
+      currentCount: startCount,
+      startCount,
       finalAttackPending: false,
     },
   };
