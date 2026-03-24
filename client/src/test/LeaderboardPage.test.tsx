@@ -60,6 +60,7 @@ describe('LeaderboardPage', () => {
 
   it('renders ranked players and highlights the signed-in user', async () => {
     fetchMock.mockResolvedValue({
+      ok: true,
       json: async () => ({
         players: [
           {

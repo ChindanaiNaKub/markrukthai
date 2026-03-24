@@ -265,7 +265,7 @@ app.get('/api/games/recent', async (_req, res) => {
 });
 
 app.get('/api/leaderboard', async (req, res) => {
-  const page = parseInt(req.query.page as string) || 0;
+  const page = Math.max(0, Math.min(parseInt(req.query.page as string) || 0, 1000));
   const limit = Math.min(parseInt(req.query.limit as string) || 25, 100);
   const [players, total] = await Promise.all([
     getLeaderboard(limit, page * limit),

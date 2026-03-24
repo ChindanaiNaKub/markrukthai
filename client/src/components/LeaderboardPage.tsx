@@ -34,7 +34,13 @@ export default function LeaderboardPage() {
   useEffect(() => {
     setLoading(true);
     fetch('/api/leaderboard?limit=50')
-      .then((response) => response.json())
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load leaderboard (${response.status})`);
+        }
+
+        return response.json();
+      })
       .then((data) => {
         setPlayers(data.players || []);
         setTotal(data.total || 0);
