@@ -1,19 +1,7 @@
 import type { PieceColor, PieceType } from '@shared/types';
 import { vi } from 'vitest';
-import type { PieceStyle } from '../lib/pieceStyle';
 import { render } from './utils';
 import PieceSVG from '../components/PieceSVG';
-
-const pieceStyleState = vi.hoisted(() => ({
-  current: 'traditional' as PieceStyle,
-}));
-
-vi.mock('../lib/pieceStyle', () => ({
-  usePieceStyle: () => ({
-    pieceStyle: pieceStyleState.current,
-    setPieceStyle: vi.fn(),
-  }),
-}));
 
 vi.mock('../assets/pieces/traditional/Bia_black.svg?raw', () => ({
   default: '<svg viewBox="0 0 360 360"><circle cx="180" cy="180" r="100" stroke="#14110F" stroke-width="20" fill="none" /><circle cx="180" cy="180" r="60" stroke="#14110F" stroke-width="20" fill="none" /><circle cx="180" cy="180" r="20" fill="#14110F" /></svg>',
@@ -38,10 +26,6 @@ vi.mock('../assets/pieces/traditional/Ruea_black.svg?raw', () => ({
 }));
 
 describe('PieceSVG', () => {
-  beforeEach(() => {
-    pieceStyleState.current = 'traditional';
-  });
-
   it('renders traditional Makruk pieces from inline black SVG sources for both colors', () => {
     const cases: Array<{ type: PieceType; color: PieceColor; fill: string; stroke: string }> = [
       { type: 'K', color: 'white', fill: '#f2eadb', stroke: '#5f5245' },
@@ -81,14 +65,5 @@ describe('PieceSVG', () => {
     expect(circles.length).toBeGreaterThan(0);
     expect(circles[0]?.getAttribute('fill') ?? '').toContain('url(#traditional-fill-');
     expect(container.innerHTML.toLowerCase()).toContain('#f2eadb');
-  });
-
-  it('keeps classic pieces rendered as inline SVG shapes', () => {
-    pieceStyleState.current = 'classic';
-
-    const { container } = render(<PieceSVG type="K" color="white" />);
-
-    expect(container.querySelector('image')).not.toBeInTheDocument();
-    expect(container.querySelector('path, circle, rect, ellipse')).toBeInTheDocument();
   });
 });
