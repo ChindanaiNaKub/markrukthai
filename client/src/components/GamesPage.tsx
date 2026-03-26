@@ -127,7 +127,7 @@ export default function GamesPage() {
                       <tr
                         key={game.id}
                         className="border-b border-surface-hover/50 hover:bg-surface-hover/30 cursor-pointer transition-colors"
-                        onClick={() => navigate(`/game/${game.id}`)}
+                        onClick={() => navigate(`/analysis/${game.id}`)}
                       >
                         <td className="px-3 sm:px-4 py-3">
                           <div className="flex flex-col gap-1">
