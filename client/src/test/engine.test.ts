@@ -402,6 +402,50 @@ describe('Game Engine', () => {
       });
     });
 
+    it('should use the 64-move pieces-honor limit against a lone knight', () => {
+      const board: Board = Array(8).fill(null).map(() => Array(8).fill(null));
+      board[0][0] = { type: 'K', color: 'white' };
+      board[2][2] = { type: 'N', color: 'white' };
+      board[7][7] = { type: 'K', color: 'black' };
+
+      const state = createInitialGameState(300000, 300000);
+      state.board = board;
+      state.turn = 'white';
+
+      const newState = makeMove(state, { row: 2, col: 2 }, { row: 4, col: 3 });
+
+      expect(newState?.counting).toMatchObject({
+        active: false,
+        type: 'pieces_honor',
+        countingColor: 'black',
+        strongerColor: 'white',
+        limit: 64,
+      });
+    });
+
+    it('should use the 64-move pieces-honor limit against three promoted pawns', () => {
+      const board: Board = Array(8).fill(null).map(() => Array(8).fill(null));
+      board[0][0] = { type: 'K', color: 'white' };
+      board[1][1] = { type: 'PM', color: 'white' };
+      board[2][3] = { type: 'PM', color: 'white' };
+      board[3][5] = { type: 'PM', color: 'white' };
+      board[7][7] = { type: 'K', color: 'black' };
+
+      const state = createInitialGameState(300000, 300000);
+      state.board = board;
+      state.turn = 'white';
+
+      const newState = makeMove(state, { row: 1, col: 1 }, { row: 2, col: 0 });
+
+      expect(newState?.counting).toMatchObject({
+        active: false,
+        type: 'pieces_honor',
+        countingColor: 'black',
+        strongerColor: 'white',
+        limit: 64,
+      });
+    });
+
     it('should allow the counting side to start and stop counting', () => {
       const board: Board = Array(8).fill(null).map(() => Array(8).fill(null));
       board[0][0] = { type: 'K', color: 'white' };
