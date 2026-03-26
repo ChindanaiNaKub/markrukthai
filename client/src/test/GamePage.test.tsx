@@ -15,7 +15,6 @@ const {
   playGameOverSoundMock,
   playGameStartSoundMock,
   getLegalMovesMock,
-  setPieceStyleMock,
   interactionState,
   boardPropsMock,
   moveHistoryPropsMock,
@@ -32,7 +31,6 @@ const {
   playGameOverSoundMock: vi.fn(),
   playGameStartSoundMock: vi.fn(),
   getLegalMovesMock: vi.fn(),
-  setPieceStyleMock: vi.fn(),
   interactionState: {
     selectedSquare: null,
     legalMoves: [],
@@ -115,8 +113,7 @@ vi.mock('../lib/i18n', () => ({
 
 vi.mock('../lib/pieceStyle', () => ({
   usePieceStyle: () => ({
-    pieceStyle: 'classic',
-    setPieceStyle: setPieceStyleMock,
+    pieceStyle: 'traditional',
   }),
 }));
 
@@ -255,7 +252,6 @@ describe('GamePage', () => {
     playGameOverSoundMock.mockReset();
     playGameStartSoundMock.mockReset();
     getLegalMovesMock.mockReset();
-    setPieceStyleMock.mockReset();
     boardPropsMock.mockReset();
     moveHistoryPropsMock.mockReset();
     gameOverModalPropsMock.mockReset();
@@ -423,11 +419,6 @@ describe('GamePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'game.resign' }));
     expect(socketMock.emit).toHaveBeenCalledWith('resign');
-
-    fireEvent.change(screen.getByRole('combobox', { name: 'game.select_piece_style' }), {
-      target: { value: 'western' },
-    });
-    expect(setPieceStyleMock).toHaveBeenCalledWith('western');
   });
 
   it('updates clocks, clears banners, and supports both counting actions', async () => {

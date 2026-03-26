@@ -1,6 +1,5 @@
 import { memo, useId } from 'react';
 import type { PieceType, PieceColor } from '@shared/types';
-import { usePieceStyle } from '../lib/pieceStyle';
 import biaBlackSvg from '../assets/pieces/traditional/Bia_black.svg?raw';
 import biangaiBlackSvg from '../assets/pieces/traditional/Biangai_black.svg?raw';
 import khonBlackSvg from '../assets/pieces/traditional/Khon_black.svg?raw';
@@ -359,28 +358,20 @@ function renderWestern(type: PieceType, color: PieceColor) {
 }
 
 const PieceSVG = memo(function PieceSVG({ type, color, size, className }: PieceSVGProps) {
-  const { pieceStyle } = usePieceStyle();
   const traditionalId = useId().replace(/[:]/g, '');
-  const traditionalAsset = pieceStyle === 'traditional' ? renderTraditional(type, color, traditionalId) : null;
-
-  const content =
-    pieceStyle === 'western'
-      ? renderWestern(type, color)
-      : pieceStyle === 'traditional'
-        ? traditionalAsset?.content
-        : renderClassic(type, color);
+  const traditionalAsset = renderTraditional(type, color, traditionalId);
 
   return (
     <svg
-      viewBox={traditionalAsset?.viewBox ?? '0 0 80 80'}
+      viewBox={traditionalAsset.viewBox}
       {...(className
         ? { className }
         : { width: size ?? 80, height: size ?? 80 }
       )}
       xmlns="http://www.w3.org/2000/svg"
     >
-      {traditionalAsset?.defs}
-      {content}
+      {traditionalAsset.defs}
+      {traditionalAsset.content}
     </svg>
   );
 });
