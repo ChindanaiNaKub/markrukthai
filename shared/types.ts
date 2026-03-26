@@ -78,6 +78,8 @@ export interface GameRoom {
   blackPlayerId: string | null;
   whiteUserId: string | null;
   blackUserId: string | null;
+  whitePlayerName: string | null;
+  blackPlayerName: string | null;
   spectators: string[];
   gameState: GameState;
   timeControl: TimeControl;
@@ -106,6 +108,8 @@ export interface ClientGameState {
   moveCount: number;
   status: 'waiting' | 'playing' | 'finished';
   playerColor: PieceColor | null;
+  whitePlayerName: string | null;
+  blackPlayerName: string | null;
   drawOffer: PieceColor | null;
   gameId: string;
   gameMode: GameMode;

@@ -19,9 +19,9 @@ describe('MatchmakingQueue', () => {
   it('matches exact time controls immediately and tracks queue size per preset', () => {
     const queue = new MatchmakingQueue();
 
-    queue.addToQueue('socket-a', blitz, { playerId: 'player-a' });
-    queue.addToQueue('socket-b', blitz, { playerId: 'player-b' });
-    queue.addToQueue('socket-c', rapid, { playerId: 'player-c' });
+    queue.addToQueue('socket-a', blitz, { playerId: 'player-a', displayName: 'Player A' });
+    queue.addToQueue('socket-b', blitz, { playerId: 'player-b', displayName: 'Player B' });
+    queue.addToQueue('socket-c', rapid, { playerId: 'player-c', displayName: 'Player C' });
 
     expect(queue.getQueueSize()).toBe(3);
     expect(queue.getQueueSizeForTimeControl(blitz)).toBe(2);
@@ -32,8 +32,8 @@ describe('MatchmakingQueue', () => {
   it('falls back to flexible matching after enough wait time has passed', () => {
     const queue = new MatchmakingQueue();
 
-    queue.addToQueue('socket-a', blitz, { playerId: 'player-a' });
-    queue.addToQueue('socket-b', nearbyFlexible, { playerId: 'player-b' });
+    queue.addToQueue('socket-a', blitz, { playerId: 'player-a', displayName: 'Player A' });
+    queue.addToQueue('socket-b', nearbyFlexible, { playerId: 'player-b', displayName: 'Player B' });
 
     expect(queue.findMatch('socket-a')).toBeNull();
 
@@ -45,9 +45,9 @@ describe('MatchmakingQueue', () => {
   it('replaces an existing queue entry for the same socket and removes stale entries', () => {
     const queue = new MatchmakingQueue();
 
-    queue.addToQueue('socket-a', blitz, { playerId: 'player-a' });
-    queue.addToQueue('socket-a', rapid, { playerId: 'player-a' });
-    queue.addToQueue('socket-b', blitz, { playerId: 'player-b' });
+    queue.addToQueue('socket-a', blitz, { playerId: 'player-a', displayName: 'Player A' });
+    queue.addToQueue('socket-a', rapid, { playerId: 'player-a', displayName: 'Player A' });
+    queue.addToQueue('socket-b', blitz, { playerId: 'player-b', displayName: 'Player B' });
 
     expect(queue.getQueueSize()).toBe(2);
     expect(queue.getEntry('socket-a')?.timeControl).toEqual(rapid);

@@ -23,6 +23,7 @@ export class GameManager {
       ownerSocketId?: string;
       ownerPlayerId?: string;
       ownerUserId?: string | null;
+      ownerDisplayName?: string | null;
       ownerColorPreference?: PrivateGameColorPreference;
       gameMode?: GameMode;
       rated?: boolean;
@@ -45,6 +46,8 @@ export class GameManager {
       blackPlayerId: ownerPlayerId && resolvedOwnerColor === 'black' ? ownerPlayerId : null,
       whiteUserId: options.ownerSocketId && resolvedOwnerColor === 'white' ? (options.ownerUserId ?? null) : null,
       blackUserId: options.ownerSocketId && resolvedOwnerColor === 'black' ? (options.ownerUserId ?? null) : null,
+      whitePlayerName: options.ownerSocketId && resolvedOwnerColor === 'white' ? (options.ownerDisplayName ?? null) : null,
+      blackPlayerName: options.ownerSocketId && resolvedOwnerColor === 'black' ? (options.ownerDisplayName ?? null) : null,
       spectators: [],
       gameState,
       timeControl,
@@ -67,7 +70,11 @@ export class GameManager {
     return room;
   }
 
-  joinGame(gameId: string, socketId: string, options: { playerId?: string; userId?: string | null } = {}): { room: GameRoom; color: PieceColor; reconnected: boolean } | null {
+  joinGame(
+    gameId: string,
+    socketId: string,
+    options: { playerId?: string; userId?: string | null; displayName?: string | null } = {},
+  ): { room: GameRoom; color: PieceColor; reconnected: boolean } | null {
     const room = this.games.get(gameId);
     if (!room) return null;
     const playerId = options.playerId ?? socketId;
@@ -86,6 +93,7 @@ export class GameManager {
       }
       room.white = socketId;
       room.whiteUserId = options.userId ?? room.whiteUserId;
+      room.whitePlayerName = options.displayName ?? room.whitePlayerName;
       this.socketGames.set(socketId, gameId);
       this.playerGames.set(playerId, gameId);
       this.clearDisconnectedPlayer(gameId, 'white');
@@ -99,6 +107,7 @@ export class GameManager {
       }
       room.black = socketId;
       room.blackUserId = options.userId ?? room.blackUserId;
+      room.blackPlayerName = options.displayName ?? room.blackPlayerName;
       this.socketGames.set(socketId, gameId);
       this.playerGames.set(playerId, gameId);
       this.clearDisconnectedPlayer(gameId, 'black');
@@ -110,6 +119,7 @@ export class GameManager {
       room.white = socketId;
       room.whitePlayerId = playerId;
       room.whiteUserId = options.userId ?? null;
+      room.whitePlayerName = options.displayName ?? null;
       this.socketGames.set(socketId, gameId);
       this.playerGames.set(playerId, gameId);
       this.clearDisconnectedPlayer(gameId, 'white');
@@ -125,6 +135,7 @@ export class GameManager {
       room.black = socketId;
       room.blackPlayerId = playerId;
       room.blackUserId = options.userId ?? null;
+      room.blackPlayerName = options.displayName ?? null;
       this.socketGames.set(socketId, gameId);
       this.playerGames.set(playerId, gameId);
       this.clearDisconnectedPlayer(gameId, 'black');
@@ -296,6 +307,8 @@ export class GameManager {
     newRoom.blackPlayerId = oldRoom.whitePlayerId;
     newRoom.whiteUserId = oldRoom.blackUserId;
     newRoom.blackUserId = oldRoom.whiteUserId;
+    newRoom.whitePlayerName = oldRoom.blackPlayerName;
+    newRoom.blackPlayerName = oldRoom.whitePlayerName;
     newRoom.gameMode = oldRoom.gameMode;
     newRoom.rated = oldRoom.rated;
 
@@ -474,6 +487,8 @@ export class GameManager {
       moveCount: room.gameState.moveCount,
       status: room.status,
       playerColor: playerColor,
+      whitePlayerName: room.whitePlayerName,
+      blackPlayerName: room.blackPlayerName,
       drawOffer: room.drawOffer,
       gameId: room.id,
       gameMode: room.gameMode,
