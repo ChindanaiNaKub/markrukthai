@@ -150,7 +150,7 @@ vi.mock('../components/Board', () => ({
 }));
 
 vi.mock('../components/Clock', () => ({
-  default: () => <div data-testid="clock" />,
+  default: (props: any) => <div data-testid="clock">{props.playerName}</div>,
 }));
 
 vi.mock('../components/MoveHistory', () => ({
@@ -233,6 +233,8 @@ function makeGameState(overrides: Partial<ClientGameState> = {}): ClientGameStat
     rated: false,
     status: 'playing',
     playerColor: 'white',
+    whitePlayerName: 'White Player',
+    blackPlayerName: 'Black Player',
     moveHistory: [],
     gameOver: false,
     winner: null,
@@ -322,6 +324,21 @@ describe('GamePage', () => {
 
     expect(connectSocketMock).toHaveBeenCalledTimes(1);
     expect(socketMock.emit).toHaveBeenCalledWith('join_game', { gameId: 'connected-room' });
+  });
+
+  it('shows the opponent username from game state when available', async () => {
+    renderGamePage('/game/names-room');
+
+    await act(async () => {
+      emitSocketEvent('game_joined', joinPayload({
+        whitePlayerName: 'MifiAndPrab',
+        blackPlayerName: 'RivalPlayer',
+      }));
+    });
+
+    expect(screen.getByText('MifiAndPrab')).toBeInTheDocument();
+    expect(screen.getByText('RivalPlayer')).toBeInTheDocument();
+    expect(screen.queryByText('game.opponent')).not.toBeInTheDocument();
   });
 
   it('renders waiting-room state, copies the invite link, and plays the start sound on transition to playing', async () => {

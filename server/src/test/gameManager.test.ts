@@ -33,6 +33,7 @@ describe('GameManager', () => {
     const room = manager.createGame(timeControl, {
       ownerSocketId: 'creator-socket',
       ownerUserId: 'creator-user',
+      ownerDisplayName: 'CreatorName',
       ownerColorPreference: 'black',
       gameMode: 'private',
       rated: false,
@@ -43,13 +44,15 @@ describe('GameManager', () => {
     expect(room.blackUserId).toBe('creator-user');
     expect(manager.getPlayerGame('creator-socket')).toBe(room.id);
 
-    const creatorJoin = manager.joinGame(room.id, 'creator-socket', { userId: 'creator-user' });
-    const guestJoin = manager.joinGame(room.id, 'guest-socket', { userId: 'guest-user' });
+    const creatorJoin = manager.joinGame(room.id, 'creator-socket', { userId: 'creator-user', displayName: 'CreatorName' });
+    const guestJoin = manager.joinGame(room.id, 'guest-socket', { userId: 'guest-user', displayName: 'GuestName' });
 
     expect(creatorJoin).toMatchObject({ color: 'black' });
     expect(guestJoin).toMatchObject({ color: 'white' });
     expect(manager.getGame(room.id)?.status).toBe('playing');
     expect(manager.getGame(room.id)?.whiteUserId).toBe('guest-user');
+    expect(manager.getGame(room.id)?.whitePlayerName).toBe('GuestName');
+    expect(manager.getGame(room.id)?.blackPlayerName).toBe('CreatorName');
   });
 
   it('rejects moves from non-players and from the wrong turn', () => {
@@ -143,8 +146,8 @@ describe('GameManager', () => {
   it('updates reconnecting player sockets and exposes client state metadata', () => {
     const manager = new GameManager();
     const room = manager.createGame(timeControl);
-    manager.joinGame(room.id, 'white-old');
-    manager.joinGame(room.id, 'black-old');
+    manager.joinGame(room.id, 'white-old', { displayName: 'WhiteUser' });
+    manager.joinGame(room.id, 'black-old', { displayName: 'BlackUser' });
 
     manager.offerDraw(room.id, 'white-old');
     manager.handleDisconnect('white-old');
@@ -160,6 +163,8 @@ describe('GameManager', () => {
     expect(clientState.drawOffer).toBe('white');
     expect(clientState.status).toBe('playing');
     expect(clientState.gameId).toBe(room.id);
+    expect(clientState.whitePlayerName).toBe('WhiteUser');
+    expect(clientState.blackPlayerName).toBe('BlackUser');
   });
 
   it('returns null for blocking-game lookup once a game is finished', () => {
