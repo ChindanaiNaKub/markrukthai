@@ -505,26 +505,13 @@ export function makeMove(state: GameState, from: Position, to: Position): GameSt
   let isDraw = false;
   let gameOver = false;
 
-  if (counting?.type === 'pieces_honor' && counting.active && counting.currentCount > counting.limit) {
-    isDraw = true;
-    gameOver = true;
-    winner = null;
-    resultReason = 'counting_rule';
-  }
-
-  if (!gameOver && isCheckmate && state.counting?.active && state.turn === state.counting.countingColor) {
-    isDraw = true;
-    gameOver = true;
-    winner = null;
-    resultReason = 'counting_rule';
-  }
-
   if (!gameOver && counting?.active && state.turn === counting.countingColor) {
     counting = cloneCountingState(counting);
     counting.currentCount += 1;
 
     if (counting.type === 'board_honor') {
-      if (counting.currentCount >= counting.limit) {
+      // Board honor draws only after the counting side completes the 65th move.
+      if (counting.currentCount > counting.limit) {
         isDraw = true;
         gameOver = true;
         winner = null;
