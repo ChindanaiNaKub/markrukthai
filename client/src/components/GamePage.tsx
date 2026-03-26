@@ -461,10 +461,14 @@ export default function GamePage() {
 
   const opponentColor: PieceColor = playerColor === 'white' ? 'black' : 'white';
   const isViewingHistory = viewMoveIndex !== null && viewMoveIndex !== gameState.moveHistory.length - 1;
-  const myDisplayName = user?.username?.trim()
-    || (user?.email ? user.email.split('@')[0] : '')
-    || t('common.you');
-  const opponentDisplayName = t('game.opponent');
+  const whitePlayerName = gameState.whitePlayerName?.trim() || '';
+  const blackPlayerName = gameState.blackPlayerName?.trim() || '';
+  const myDisplayName = playerColor === 'white'
+    ? whitePlayerName || user?.username?.trim() || (user?.email ? user.email.split('@')[0] : '') || t('common.you')
+    : blackPlayerName || user?.username?.trim() || (user?.email ? user.email.split('@')[0] : '') || t('common.you');
+  const opponentDisplayName = opponentColor === 'white'
+    ? whitePlayerName || t('game.opponent')
+    : blackPlayerName || t('game.opponent');
   const playerRating = typeof user?.rating === 'number'
     ? user.rating
     : gameOverInfo?.ratingChange

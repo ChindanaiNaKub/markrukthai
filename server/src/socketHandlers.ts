@@ -77,6 +77,22 @@ function rejectSocketEvent(
   socket.emit('error', { message });
 }
 
+function getSocketDisplayName(socket: ServerSocket) {
+  const authUser = socket.data.authUser;
+  const username = authUser?.username?.trim();
+  if (username) return username;
+
+  const localPart = authUser?.email?.split('@')[0]?.trim();
+  if (localPart) {
+    if (localPart.length <= 2) {
+      return `${localPart.slice(0, 1)}***`;
+    }
+    return `${localPart.slice(0, 2)}***`;
+  }
+
+  return 'Guest';
+}
+
 function enforceSocketRateLimit(
   socket: ServerSocket,
   event: keyof typeof SOCKET_RATE_LIMITS,
@@ -153,6 +169,8 @@ function tryMatchmakeQueue(deps: SocketHandlerDeps) {
       room.blackPlayerId = blackEntry.playerId;
       room.whiteUserId = whiteEntry.userId;
       room.blackUserId = blackEntry.userId;
+      room.whitePlayerName = whiteEntry.displayName;
+      room.blackPlayerName = blackEntry.displayName;
       room.status = 'playing';
       room.gameState.lastMoveTime = Date.now();
 
@@ -196,6 +214,7 @@ export function createSocketConnectionHandler(deps: SocketHandlerDeps) {
         ownerSocketId: socket.id,
         ownerPlayerId: socket.data.playerId,
         ownerUserId: socket.data.authUser?.id ?? null,
+        ownerDisplayName: getSocketDisplayName(socket),
         ownerColorPreference: payload.colorPreference,
         gameMode: 'private',
         rated: false,
@@ -242,6 +261,7 @@ export function createSocketConnectionHandler(deps: SocketHandlerDeps) {
       const result = deps.gameManager.joinGame(gameId, socket.id, {
         playerId: socket.data.playerId,
         userId: socket.data.authUser?.id ?? null,
+        displayName: getSocketDisplayName(socket),
       });
       if (!result) {
         rejectSocketEvent(deps.monitoring, socket, 'join_game', 'Unable to join game. Game may be full or not found.', { gameId });
@@ -496,6 +516,7 @@ export function createSocketConnectionHandler(deps: SocketHandlerDeps) {
       deps.matchmaking.addToQueue(socket.id, payload.timeControl, {
         playerId: socket.data.playerId,
         userId: socket.data.authUser?.id ?? null,
+        displayName: getSocketDisplayName(socket),
       });
       socket.emit('matchmaking_started');
       broadcastQueueStatus(deps.io, deps.matchmaking);
