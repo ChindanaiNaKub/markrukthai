@@ -5,6 +5,7 @@ import {
 } from './engine';
 
 export type MoveClassification = 'best' | 'excellent' | 'good' | 'inaccuracy' | 'mistake' | 'blunder';
+export type AnalysisEngine = 'fairy-stockfish' | 'fallback';
 
 export interface AnalyzedMove {
   move: Move;
@@ -21,6 +22,7 @@ export interface AnalyzedMove {
 export interface GameAnalysis {
   moves: AnalyzedMove[];
   evaluations: number[];
+  engine: AnalysisEngine;
   whiteAccuracy: number;
   blackAccuracy: number;
   summary: {
@@ -407,6 +409,7 @@ export function analyzeGame(
   return {
     moves: analyzedMoves,
     evaluations,
+    engine: 'fallback',
     whiteAccuracy: computeAccuracy(whiteClassifications),
     blackAccuracy: computeAccuracy(blackClassifications),
     summary: { white: whiteSummary, black: blackSummary },
