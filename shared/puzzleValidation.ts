@@ -1,7 +1,14 @@
-import { getLegalMoves, hasAnyLegalMoves, makeMove, posToAlgebraic } from './engine';
+import { getLegalMoves, hasAnyLegalMoves, isInCheck, makeMove, posToAlgebraic } from './engine';
 import type { Board, GameState, Move, PieceColor, Position } from './types';
 import type { Puzzle } from './puzzles';
-import { createGameStateFromPuzzle, getForcingMoves, isThemeSatisfied } from './puzzleSolver';
+import {
+  createGameStateFromPuzzle,
+  getForcingMoves,
+  getMaterialSwing,
+  isTacticalTheme,
+  isThemeSatisfied,
+  TACTICAL_WIN_SWING,
+} from './puzzleSolver';
 
 export interface PuzzleValidationResult {
   puzzleId: number;
@@ -49,6 +56,10 @@ function validateThemeOutcome(puzzle: Puzzle, finalState: GameState, errors: str
 
   if (puzzle.theme === 'Promotion' && !lastMove?.promoted) {
     errors.push('Final move does not promote a pawn for a Promotion puzzle.');
+  }
+
+  if (isTacticalTheme(puzzle.theme) && getMaterialSwing(puzzle, finalState) < TACTICAL_WIN_SWING) {
+    errors.push(`Final position does not win enough material for a ${puzzle.theme} puzzle.`);
   }
 }
 
@@ -130,6 +141,25 @@ export function validatePuzzle(puzzle: Puzzle): PuzzleValidationResult {
   }
 
   let state = createGameStateFromPuzzle(puzzle);
+  const defendingColor: PieceColor = puzzle.toMove === 'white' ? 'black' : 'white';
+  const solverInCheck = isInCheck(puzzle.board, puzzle.toMove);
+  const defenderInCheck = isInCheck(puzzle.board, defendingColor);
+
+  if (solverInCheck && defenderInCheck) {
+    errors.push('Puzzle board is illegal: both kings are in check.');
+    return { puzzleId: puzzle.id, title: puzzle.title, errors, warnings };
+  }
+
+  if (defenderInCheck) {
+    errors.push('Starting position is illegal: the non-moving side is already in check.');
+    return { puzzleId: puzzle.id, title: puzzle.title, errors, warnings };
+  }
+
+  if (isThemeSatisfied(puzzle, state)) {
+    errors.push('Puzzle theme is already satisfied in the starting position.');
+    return { puzzleId: puzzle.id, title: puzzle.title, errors, warnings };
+  }
+
   if (!hasAnyLegalMoves(state.board, state.turn)) {
     errors.push('Side to move has no legal moves in the starting position.');
     return { puzzleId: puzzle.id, title: puzzle.title, errors, warnings };
