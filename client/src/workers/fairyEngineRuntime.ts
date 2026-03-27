@@ -1,5 +1,6 @@
 import {
   type AnalyzedMove,
+  type AnalysisEngine,
   type AnalysisProgress,
   type GameAnalysis,
   type MoveClassification,
@@ -10,9 +11,9 @@ import type { Move, PieceColor, Position } from '@shared/types';
 import { moveToUci, parseUciMove } from '@shared/uci';
 // @ts-expect-error Vite handles CJS interop for this package at bundle time.
 import StockfishFactory from 'fairy-stockfish-nnue.wasm/stockfish.js';
-import stockfishScriptUrl from 'fairy-stockfish-nnue.wasm/stockfish.js?url';
+import stockfishScriptSource from 'fairy-stockfish-nnue.wasm/stockfish.js?raw';
 import stockfishWasmUrl from 'fairy-stockfish-nnue.wasm/stockfish.wasm?url';
-import stockfishWorkerUrl from 'fairy-stockfish-nnue.wasm/stockfish.worker.js?url';
+import stockfishWorkerSource from 'fairy-stockfish-nnue.wasm/stockfish.worker.js?raw';
 
 interface EngineScore {
   kind: 'cp' | 'mate';
@@ -107,6 +108,13 @@ class FairyEngineRuntime {
   static async create(): Promise<FairyEngineRuntime | null> {
     if (!supportsBrowserEngine()) return null;
 
+    const stockfishScriptUrl = URL.createObjectURL(new Blob([stockfishScriptSource], { type: 'text/javascript' }));
+    const stockfishWorkerUrl = URL.createObjectURL(new Blob([stockfishWorkerSource], { type: 'text/javascript' }));
+    const cleanupUrls = () => {
+      URL.revokeObjectURL(stockfishScriptUrl);
+      URL.revokeObjectURL(stockfishWorkerUrl);
+    };
+
     try {
       const engine = await StockfishFactory({
         locateFile: (file: string) => {
@@ -121,6 +129,7 @@ class FairyEngineRuntime {
       await runtime.initialize();
       return runtime;
     } catch {
+      cleanupUrls();
       return null;
     }
   }
@@ -296,6 +305,7 @@ export async function analyzeWithFairyStockfish(
   return {
     moves: analyzedMoves,
     evaluations,
+    engine: 'fairy-stockfish' satisfies AnalysisEngine,
     whiteAccuracy: computeAccuracy(whiteClassifications),
     blackAccuracy: computeAccuracy(blackClassifications),
     summary: { white: whiteSummary, black: blackSummary },
