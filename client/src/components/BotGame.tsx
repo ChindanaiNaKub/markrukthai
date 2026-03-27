@@ -18,12 +18,9 @@ import Header from './Header';
 import PieceSVG from './PieceSVG';
 import Clock from './Clock';
 import CapturedPiecesPanel from './CapturedPiecesPanel';
-import type { BestMoveResponse, ErrorResponse } from '../workers/botWorker';
 
 const DEFAULT_PLAY_TIME_MS = 10 * 60 * 1000;
 const LOCAL_CLOCK_TICK_MS = 500;
-const EXTERNAL_BOT_TIMEOUT_MS = 6000;
-const HARD_BOT_FAILSAFE_TIMEOUT_MS = 9000;
 
 export default function BotGame() {
   const navigate = useNavigate();
@@ -37,11 +34,7 @@ export default function BotGame() {
   const [gameOverInfo, setGameOverInfo] = useState<{ reason: string; winner: PieceColor | null } | null>(null);
   const [showGameOverModal, setShowGameOverModal] = useState(false);
   const [botThinking, setBotThinking] = useState(false);
-  const [engineStatus, setEngineStatus] = useState<'unknown' | 'fairy-stockfish' | 'fallback'>('unknown');
   const botTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const botFailsafeRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const botWorkerRef = useRef<Worker | null>(null);
-  const botRequestIdRef = useRef(0);
   const gameStateRef = useRef(gameState);
   const [arrows, setArrows] = useState<Arrow[]>([]);
   const [viewMoveIndex, setViewMoveIndex] = useState<number | null>(null);
@@ -56,66 +49,11 @@ export default function BotGame() {
     gameStateRef.current = gameState;
   }, [gameState]);
 
-  useEffect(() => {
-    return () => {
-      botWorkerRef.current?.terminate();
-      botWorkerRef.current = null;
-      if (botTimeoutRef.current) clearTimeout(botTimeoutRef.current);
-      if (botFailsafeRef.current) clearTimeout(botFailsafeRef.current);
-    };
-  }, []);
-
   const difficultyConfig: Record<BotDifficulty, { labelKey: string; descKey: string; emoji: string }> = {
     easy: { labelKey: 'bot.easy', descKey: 'bot.easy_desc', emoji: '🟢' },
     medium: { labelKey: 'bot.medium', descKey: 'bot.medium_desc', emoji: '🟡' },
     hard: { labelKey: 'bot.hard', descKey: 'bot.hard_desc', emoji: '🔴' },
   };
-
-  const requestExternalBotMove = useCallback((moves: Move[]) => {
-    return new Promise<{ from: Position; to: Position } | null>((resolve, reject) => {
-      let worker = botWorkerRef.current;
-      if (!worker) {
-        worker = new Worker(new URL('../workers/botWorker.ts', import.meta.url), { type: 'module' });
-        botWorkerRef.current = worker;
-      }
-
-      const requestId = ++botRequestIdRef.current;
-      const timer = setTimeout(() => {
-        cleanup();
-        botWorkerRef.current?.terminate();
-        botWorkerRef.current = null;
-        reject(new Error('Bot engine timed out'));
-      }, EXTERNAL_BOT_TIMEOUT_MS);
-
-      const cleanup = () => {
-        clearTimeout(timer);
-        worker?.removeEventListener('message', handleMessage);
-        worker?.removeEventListener('error', handleError);
-      };
-
-      const handleMessage = (event: MessageEvent<BestMoveResponse | ErrorResponse>) => {
-        const message = event.data;
-        if (message.requestId !== requestId) return;
-        cleanup();
-
-        if (message.type === 'result') {
-          resolve(message.move);
-          return;
-        }
-
-        reject(new Error(message.message || 'Bot engine failed'));
-      };
-
-      const handleError = () => {
-        cleanup();
-        reject(new Error('Bot engine failed'));
-      };
-
-      worker.addEventListener('message', handleMessage);
-      worker.addEventListener('error', handleError);
-      worker.postMessage({ type: 'bestmove', requestId, moves, depth: 4 });
-    });
-  }, []);
 
   useEffect(() => {
     if (!gameStarted || gameState.gameOver || isPlayerTurn) return;
@@ -133,98 +71,30 @@ export default function BotGame() {
 
     botTimeoutRef.current = setTimeout(() => {
       const currentState = gameStateRef.current;
-      const moveCountAtStart = currentState.moveHistory.length;
-      const canApplyBotResult = () => {
-        const latestState = gameStateRef.current;
-        return !latestState.gameOver
-          && latestState.turn === botColor
-          && latestState.moveHistory.length === moveCountAtStart;
-      };
+      const botMoveResult = getBotMove(currentState, difficulty);
+      if (botMoveResult) {
+        const newState = makeMove(currentState, botMoveResult.from, botMoveResult.to);
+        if (newState) {
+          setGameState(newState);
+          setArrows([]);
+          const lastMove = newState.moveHistory[newState.moveHistory.length - 1];
+          if (newState.isCheck) playCheckSound();
+          else if (lastMove.captured) playCaptureSound();
+          else playMoveSound();
 
-      const finishMove = (baseState: GameState, botMoveResult: { from: Position; to: Position } | null) => {
-        if (botMoveResult) {
-          const newState = makeMove(baseState, botMoveResult.from, botMoveResult.to);
-          if (newState) {
-            setGameState(newState);
-            setArrows([]);
-            const lastMove = newState.moveHistory[newState.moveHistory.length - 1];
-            if (newState.isCheck) playCheckSound();
-            else if (lastMove.captured) playCaptureSound();
-            else playMoveSound();
-
-            if (newState.gameOver) {
-              const reason = newState.resultReason ?? 'draw';
-              setGameOverInfo({ reason, winner: newState.winner });
-              setPremove(null);
-              playGameOverSound();
-            }
+          if (newState.gameOver) {
+            const reason = newState.resultReason ?? 'draw';
+            setGameOverInfo({ reason, winner: newState.winner });
+            setPremove(null);
+            playGameOverSound();
           }
         }
-
-        setBotThinking(false);
-      };
-
-      const fallbackMove = () => {
-        const latestState = gameStateRef.current;
-        if (!canApplyBotResult()) {
-          setBotThinking(false);
-          return;
-        }
-
-        finishMove(latestState, getBotMove(latestState, difficulty));
-      };
-
-      if (difficulty !== 'hard') {
-        setEngineStatus('fallback');
-        fallbackMove();
-        return;
       }
-
-      botFailsafeRef.current = setTimeout(() => {
-        botFailsafeRef.current = null;
-
-        if (!canApplyBotResult()) {
-          setBotThinking(false);
-          return;
-        }
-
-        botWorkerRef.current?.terminate();
-        botWorkerRef.current = null;
-        setEngineStatus('fallback');
-        fallbackMove();
-      }, HARD_BOT_FAILSAFE_TIMEOUT_MS);
-
-      requestExternalBotMove(currentState.moveHistory)
-        .then((move) => {
-          if (botFailsafeRef.current) clearTimeout(botFailsafeRef.current);
-          botFailsafeRef.current = null;
-
-          if (!canApplyBotResult()) {
-            setBotThinking(false);
-            return;
-          }
-
-          const latestState = gameStateRef.current;
-          setEngineStatus(move ? 'fairy-stockfish' : 'fallback');
-          finishMove(latestState, move ?? getBotMove(latestState, difficulty));
-        })
-        .catch(() => {
-          if (botFailsafeRef.current) clearTimeout(botFailsafeRef.current);
-          botFailsafeRef.current = null;
-
-          if (!canApplyBotResult()) {
-            setBotThinking(false);
-            return;
-          }
-
-          setEngineStatus('fallback');
-          fallbackMove();
-        });
+      setBotThinking(false);
     }, delay);
 
     return () => {
       if (botTimeoutRef.current) clearTimeout(botTimeoutRef.current);
-      if (botFailsafeRef.current) clearTimeout(botFailsafeRef.current);
     };
   }, [
     botColor,
@@ -236,7 +106,6 @@ export default function BotGame() {
     gameState.moveHistory.length,
     gameState.turn,
     isPlayerTurn,
-    requestExternalBotMove,
   ]);
 
   useEffect(() => {
@@ -439,18 +308,12 @@ export default function BotGame() {
   }, [gameState, isPlayerTurn, botThinking, playerColor]);
 
   const handleStartGame = () => {
-    botRequestIdRef.current += 1;
-    botWorkerRef.current?.terminate();
-    botWorkerRef.current = null;
-    if (botTimeoutRef.current) clearTimeout(botTimeoutRef.current);
-    if (botFailsafeRef.current) clearTimeout(botFailsafeRef.current);
     setGameState(createInitialGameState(DEFAULT_PLAY_TIME_MS, DEFAULT_PLAY_TIME_MS));
     setSelectedSquare(null);
     setLegalMoves([]);
     setGameOverInfo(null);
     setShowGameOverModal(false);
     setBotThinking(false);
-    setEngineStatus(difficulty === 'hard' ? 'unknown' : 'fallback');
     setGameStarted(true);
     setArrows([]);
     setViewMoveIndex(null);
@@ -458,11 +321,7 @@ export default function BotGame() {
   };
 
   const handleReset = () => {
-    botRequestIdRef.current += 1;
-    botWorkerRef.current?.terminate();
-    botWorkerRef.current = null;
     if (botTimeoutRef.current) clearTimeout(botTimeoutRef.current);
-    if (botFailsafeRef.current) clearTimeout(botFailsafeRef.current);
     setGameStarted(false);
     setGameState(createInitialGameState(DEFAULT_PLAY_TIME_MS, DEFAULT_PLAY_TIME_MS));
     setSelectedSquare(null);
@@ -470,7 +329,6 @@ export default function BotGame() {
     setGameOverInfo(null);
     setShowGameOverModal(false);
     setBotThinking(false);
-    setEngineStatus('unknown');
     setArrows([]);
     setViewMoveIndex(null);
     setPremove(null);
@@ -710,23 +568,6 @@ export default function BotGame() {
 
           <div className="flex flex-col gap-3 lg:w-72 w-full max-w-[720px]">
             {/* Turn indicator (only during play) */}
-            <div className="rounded-lg px-4 py-2 bg-surface-alt text-xs text-text border border-surface-hover flex items-center justify-between gap-2">
-              <span className="uppercase tracking-wide font-semibold text-text-dim">{t('engine.label')}</span>
-              <span className={
-                engineStatus === 'fairy-stockfish'
-                  ? 'text-primary-light font-semibold'
-                  : engineStatus === 'fallback'
-                  ? 'text-text'
-                  : 'text-text-dim'
-              }>
-                {engineStatus === 'fairy-stockfish'
-                  ? t('engine.external')
-                  : engineStatus === 'fallback'
-                  ? t('engine.fallback')
-                  : t('engine.pending')}
-              </span>
-            </div>
-
             {!gameState.gameOver && (
               <div className={`
                 rounded-lg px-4 py-3 text-center font-semibold text-sm
