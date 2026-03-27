@@ -1,6 +1,5 @@
 import { analyzeGame, type AnalysisProgress, type GameAnalysis } from '@shared/analysis';
 import type { Move } from '@shared/types';
-import { analyzeWithFairyStockfish } from './fairyEngineRuntime';
 
 interface AnalyzeMessage {
   type: 'analyze';
@@ -25,18 +24,11 @@ interface ErrorMessage {
 
 type WorkerResponse = ProgressMessage | ResultMessage | ErrorMessage;
 
-self.onmessage = async (event: MessageEvent<AnalyzeMessage>) => {
+self.onmessage = (event: MessageEvent<AnalyzeMessage>) => {
   if (event.data.type !== 'analyze') return;
 
   try {
-    const analysis = await analyzeWithFairyStockfish(
-      event.data.moves,
-      event.data.depth,
-      (progress) => {
-        const message: ProgressMessage = { type: 'progress', progress };
-        self.postMessage(message);
-      },
-    ) ?? analyzeGame(event.data.moves, event.data.depth, (progress) => {
+    const analysis = analyzeGame(event.data.moves, event.data.depth, (progress) => {
       const message: ProgressMessage = { type: 'progress', progress };
       self.postMessage(message);
     });

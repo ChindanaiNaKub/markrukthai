@@ -18,7 +18,6 @@ import Header from './Header';
 import PieceSVG from './PieceSVG';
 import Clock from './Clock';
 import CapturedPiecesPanel from './CapturedPiecesPanel';
-import type { BestMoveResponse, ErrorResponse } from '../workers/botWorker';
 
 const DEFAULT_PLAY_TIME_MS = 10 * 60 * 1000;
 const LOCAL_CLOCK_TICK_MS = 500;
@@ -36,8 +35,6 @@ export default function BotGame() {
   const [showGameOverModal, setShowGameOverModal] = useState(false);
   const [botThinking, setBotThinking] = useState(false);
   const botTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const botWorkerRef = useRef<Worker | null>(null);
-  const botRequestIdRef = useRef(0);
   const gameStateRef = useRef(gameState);
   const [arrows, setArrows] = useState<Arrow[]>([]);
   const [viewMoveIndex, setViewMoveIndex] = useState<number | null>(null);
@@ -52,58 +49,11 @@ export default function BotGame() {
     gameStateRef.current = gameState;
   }, [gameState]);
 
-  useEffect(() => {
-    return () => {
-      botWorkerRef.current?.terminate();
-      botWorkerRef.current = null;
-      if (botTimeoutRef.current) clearTimeout(botTimeoutRef.current);
-    };
-  }, []);
-
   const difficultyConfig: Record<BotDifficulty, { labelKey: string; descKey: string; emoji: string }> = {
     easy: { labelKey: 'bot.easy', descKey: 'bot.easy_desc', emoji: '🟢' },
     medium: { labelKey: 'bot.medium', descKey: 'bot.medium_desc', emoji: '🟡' },
     hard: { labelKey: 'bot.hard', descKey: 'bot.hard_desc', emoji: '🔴' },
   };
-
-  const requestExternalBotMove = useCallback((moves: Move[]) => {
-    return new Promise<{ from: Position; to: Position } | null>((resolve, reject) => {
-      let worker = botWorkerRef.current;
-      if (!worker) {
-        worker = new Worker(new URL('../workers/botWorker.ts', import.meta.url), { type: 'module' });
-        botWorkerRef.current = worker;
-      }
-
-      const requestId = ++botRequestIdRef.current;
-
-      const cleanup = () => {
-        worker?.removeEventListener('message', handleMessage);
-        worker?.removeEventListener('error', handleError);
-      };
-
-      const handleMessage = (event: MessageEvent<BestMoveResponse | ErrorResponse>) => {
-        const message = event.data;
-        if (message.requestId !== requestId) return;
-        cleanup();
-
-        if (message.type === 'result') {
-          resolve(message.move);
-          return;
-        }
-
-        reject(new Error(message.message || 'Bot engine failed'));
-      };
-
-      const handleError = () => {
-        cleanup();
-        reject(new Error('Bot engine failed'));
-      };
-
-      worker.addEventListener('message', handleMessage);
-      worker.addEventListener('error', handleError);
-      worker.postMessage({ type: 'bestmove', requestId, moves, depth: 4 });
-    });
-  }, []);
 
   useEffect(() => {
     if (!gameStarted || gameState.gameOver || isPlayerTurn) return;
@@ -121,53 +71,26 @@ export default function BotGame() {
 
     botTimeoutRef.current = setTimeout(() => {
       const currentState = gameStateRef.current;
-      const finishMove = (botMoveResult: { from: Position; to: Position } | null) => {
-        if (botMoveResult) {
-          const newState = makeMove(currentState, botMoveResult.from, botMoveResult.to);
-          if (newState) {
-            setGameState(newState);
-            setArrows([]);
-            const lastMove = newState.moveHistory[newState.moveHistory.length - 1];
-            if (newState.isCheck) playCheckSound();
-            else if (lastMove.captured) playCaptureSound();
-            else playMoveSound();
+      const botMoveResult = getBotMove(currentState, difficulty);
+      if (botMoveResult) {
+        const newState = makeMove(currentState, botMoveResult.from, botMoveResult.to);
+        if (newState) {
+          setGameState(newState);
+          setArrows([]);
+          const lastMove = newState.moveHistory[newState.moveHistory.length - 1];
+          if (newState.isCheck) playCheckSound();
+          else if (lastMove.captured) playCaptureSound();
+          else playMoveSound();
 
-            if (newState.gameOver) {
-              const reason = newState.resultReason ?? 'draw';
-              setGameOverInfo({ reason, winner: newState.winner });
-              setPremove(null);
-              playGameOverSound();
-            }
+          if (newState.gameOver) {
+            const reason = newState.resultReason ?? 'draw';
+            setGameOverInfo({ reason, winner: newState.winner });
+            setPremove(null);
+            playGameOverSound();
           }
         }
-
-        setBotThinking(false);
-      };
-
-      const fallbackMove = () => finishMove(getBotMove(currentState, difficulty));
-
-      if (difficulty !== 'hard') {
-        fallbackMove();
-        return;
       }
-
-      requestExternalBotMove(currentState.moveHistory)
-        .then((move) => {
-          if (gameStateRef.current !== currentState || gameStateRef.current.gameOver || gameStateRef.current.turn !== botColor) {
-            setBotThinking(false);
-            return;
-          }
-
-          finishMove(move ?? getBotMove(currentState, difficulty));
-        })
-        .catch(() => {
-          if (gameStateRef.current !== currentState || gameStateRef.current.gameOver || gameStateRef.current.turn !== botColor) {
-            setBotThinking(false);
-            return;
-          }
-
-          fallbackMove();
-        });
+      setBotThinking(false);
     }, delay);
 
     return () => {
@@ -183,7 +106,6 @@ export default function BotGame() {
     gameState.moveHistory.length,
     gameState.turn,
     isPlayerTurn,
-    requestExternalBotMove,
   ]);
 
   useEffect(() => {
@@ -386,10 +308,6 @@ export default function BotGame() {
   }, [gameState, isPlayerTurn, botThinking, playerColor]);
 
   const handleStartGame = () => {
-    botRequestIdRef.current += 1;
-    botWorkerRef.current?.terminate();
-    botWorkerRef.current = null;
-    if (botTimeoutRef.current) clearTimeout(botTimeoutRef.current);
     setGameState(createInitialGameState(DEFAULT_PLAY_TIME_MS, DEFAULT_PLAY_TIME_MS));
     setSelectedSquare(null);
     setLegalMoves([]);
@@ -403,9 +321,6 @@ export default function BotGame() {
   };
 
   const handleReset = () => {
-    botRequestIdRef.current += 1;
-    botWorkerRef.current?.terminate();
-    botWorkerRef.current = null;
     if (botTimeoutRef.current) clearTimeout(botTimeoutRef.current);
     setGameStarted(false);
     setGameState(createInitialGameState(DEFAULT_PLAY_TIME_MS, DEFAULT_PLAY_TIME_MS));
