@@ -80,7 +80,44 @@ describe('puzzleValidation', () => {
     const result = validatePuzzle(puzzle);
     const forcingMoves = getForcingMoves(createGameStateFromPuzzle(puzzle), puzzle);
 
-    expect(result.errors).toContain('First solution move is illegal in the starting position.');
+    expect(result.errors).toContain('Starting position is illegal: the non-moving side is already in check.');
     expect(forcingMoves).toHaveLength(0);
+  });
+
+  it('rejects positions where the non-moving side is already in check', () => {
+    const board = emptyBoard();
+    board[0][3] = p('K', 'black');
+    board[2][3] = p('K', 'white');
+    board[1][2] = p('M', 'white');
+    board[2][4] = p('M', 'white');
+
+    const puzzle: Puzzle = {
+      id: 1001,
+      title: 'Broken Double Met Mate',
+      description: 'This should be rejected because Black is already in check before White moves.',
+      explanation: 'A legal puzzle cannot start with the non-moving side already in check.',
+      source: 'test fixture',
+      theme: 'Checkmate',
+      difficulty: 'beginner',
+      toMove: 'white',
+      board,
+      solution: [{ from: { row: 2, col: 4 }, to: { row: 1, col: 3 } }],
+    };
+
+    const result = validatePuzzle(puzzle);
+
+    expect(result.errors).toContain('Starting position is illegal: the non-moving side is already in check.');
+  });
+
+  it('accepts tactical puzzles that win material cleanly', () => {
+    const puzzle = PUZZLES.find(candidate => candidate.id === 12);
+    expect(puzzle).toBeDefined();
+
+    const result = validatePuzzle(puzzle!);
+    const forcingMoves = getForcingMoves(createGameStateFromPuzzle(puzzle!), puzzle!);
+
+    expect(result.errors).toEqual([]);
+    expect(forcingMoves).toHaveLength(1);
+    expect(forcingMoves[0]).toMatchObject(puzzle!.solution[0]);
   });
 });
