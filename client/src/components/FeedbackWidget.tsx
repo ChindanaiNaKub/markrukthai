@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from '../lib/i18n';
+import { routes } from '../lib/routes';
 
 type FeedbackType = 'bug' | 'feature' | 'other';
 
@@ -51,19 +52,24 @@ export default function FeedbackWidget() {
       ? 'feedback.placeholder_feature'
       : 'feedback.placeholder_other';
 
+  const shouldHideLauncher = location.pathname === routes.login || location.pathname === routes.feedback;
+
+  if (shouldHideLauncher) {
+    return null;
+  }
+
   return (
     <>
-      {/* Floating button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-4 right-4 z-40 bg-surface-alt hover:bg-surface-hover border border-surface-hover text-text-dim hover:text-text-bright rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm shadow-lg transition-all hover:shadow-xl flex items-center gap-1.5"
+        aria-label={t('feedback.title')}
+        className="fixed bottom-3 right-3 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-surface-hover bg-surface-alt text-text-dim shadow-lg transition-all hover:bg-surface-hover hover:text-text-bright hover:shadow-xl sm:bottom-6 sm:right-6 sm:h-auto sm:w-auto sm:gap-1.5 sm:px-4 sm:py-2"
         title={t('feedback.title')}
       >
         <span>💬</span>
-        <span className="hidden sm:inline">{t('feedback.button')}</span>
+        <span className="hidden sm:inline text-sm font-medium">{t('feedback.button')}</span>
       </button>
 
-      {/* Modal */}
       {isOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 animate-fadeIn p-0 sm:p-4" onClick={() => setIsOpen(false)}>
           <div
