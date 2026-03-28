@@ -4,9 +4,9 @@ import PieceSVG from './PieceSVG';
 import { useBoardAppearance } from '../lib/pieceStyle';
 import { useTranslation } from '../lib/i18n';
 import type { BoardThemeConfig } from '../themes/boards';
-import type { PieceStyle } from '../themes/pieces';
+import type { PieceThemeId } from '../themes/pieces';
 
-type SettingsTab = 'boards' | 'pieces';
+type SettingsTab = 'boards' | 'colors';
 
 const PREVIEW_PIECES = [
   { row: 0, col: 0, type: 'S', color: 'black' },
@@ -19,11 +19,11 @@ const PREVIEW_PIECES = [
 
 function PreviewBoard({
   boardTheme,
-  pieceStyle,
+  pieceThemeId,
   size = 'large',
 }: {
   boardTheme: BoardThemeConfig;
-  pieceStyle: PieceStyle;
+  pieceThemeId: PieceThemeId;
   size?: 'small' | 'large';
 }) {
   const squareClass = size === 'small' ? 'h-6 w-6 sm:h-7 sm:w-7' : 'h-16 w-16 sm:h-[4.5rem] sm:w-[4.5rem]';
@@ -50,7 +50,7 @@ function PreviewBoard({
               <PieceSVG
                 type={piece.type}
                 color={piece.color}
-                pieceStyleId={pieceStyle}
+                pieceThemeId={pieceThemeId}
                 className={pieceClass}
               />
             )}
@@ -67,21 +67,23 @@ export default function AppearanceSettingsPage() {
     boardTheme,
     boardThemeId,
     boardThemes,
-    pieceSet,
-    pieceSets,
-    pieceStyle,
+    corePieceShapeLabel,
+    pieceTheme,
+    pieceThemeId,
+    pieceThemes,
     setBoardThemeId,
-    setPieceStyle,
+    setPieceThemeId,
   } = useBoardAppearance();
   const [activeTab, setActiveTab] = useState<SettingsTab>('boards');
   const [hoveredBoardThemeId, setHoveredBoardThemeId] = useState<typeof boardThemeId | null>(null);
-  const [hoveredPieceStyle, setHoveredPieceStyle] = useState<PieceStyle | null>(null);
+  const [hoveredPieceThemeId, setHoveredPieceThemeId] = useState<PieceThemeId | null>(null);
 
   const previewBoardTheme = useMemo(() => {
     return boardThemes.find((theme) => theme.id === hoveredBoardThemeId) ?? boardTheme;
   }, [boardTheme, boardThemes, hoveredBoardThemeId]);
 
-  const previewPieceStyle = hoveredPieceStyle ?? pieceStyle;
+  const previewPieceThemeId = hoveredPieceThemeId ?? pieceThemeId;
+  const previewPieceTheme = pieceThemes.find((theme) => theme.id === previewPieceThemeId) ?? pieceTheme;
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
@@ -109,10 +111,10 @@ export default function AppearanceSettingsPage() {
                 {t('appearance.boards_tab')}
               </button>
               <button
-                onClick={() => setActiveTab('pieces')}
-                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${activeTab === 'pieces' ? 'bg-primary text-white shadow-sm' : 'border border-surface-hover bg-surface text-text-dim hover:text-text-bright'}`}
+                onClick={() => setActiveTab('colors')}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${activeTab === 'colors' ? 'bg-primary text-white shadow-sm' : 'border border-surface-hover bg-surface text-text-dim hover:text-text-bright'}`}
               >
-                {t('appearance.pieces_tab')}
+                {t('appearance.colors_tab')}
               </button>
             </div>
 
@@ -153,25 +155,32 @@ export default function AppearanceSettingsPage() {
             ) : (
               <div
                 className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
-                onMouseLeave={() => setHoveredPieceStyle(null)}
+                onMouseLeave={() => setHoveredPieceThemeId(null)}
               >
-                {pieceSets.map((set) => {
-                  const isActive = set.id === pieceStyle;
+                <div className="sm:col-span-2 lg:col-span-3 rounded-2xl border border-surface-hover bg-surface/75 px-4 py-3 text-sm text-text-dim">
+                  <span className="font-semibold text-text-bright">{t('appearance.core_shape_label')}</span>
+                  {' '}
+                  {corePieceShapeLabel}
+                  {' '}
+                  <span>{t('appearance.core_shape_desc')}</span>
+                </div>
+                {pieceThemes.map((theme) => {
+                  const isActive = theme.id === pieceThemeId;
 
                   return (
                     <button
-                      key={set.id}
-                      onClick={() => setPieceStyle(set.id)}
-                      onMouseEnter={() => setHoveredPieceStyle(set.id)}
+                      key={theme.id}
+                      onClick={() => setPieceThemeId(theme.id)}
+                      onMouseEnter={() => setHoveredPieceThemeId(theme.id)}
                       className={`group rounded-2xl border p-3 text-left transition-all duration-200 ${isActive ? 'border-primary/45 bg-primary/10 shadow-[0_14px_28px_rgba(85,148,63,0.18)]' : 'border-surface-hover bg-surface hover:border-primary/30 hover:bg-surface-hover'}`}
                     >
                       <div className="mb-3 flex justify-center">
-                        <PreviewBoard boardTheme={boardTheme} pieceStyle={set.id} size="small" />
+                        <PreviewBoard boardTheme={boardTheme} pieceThemeId={theme.id} size="small" />
                       </div>
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-sm font-semibold text-text-bright">{set.label}</div>
-                          <div className="mt-1 text-xs text-text-dim">{set.description}</div>
+                          <div className="text-sm font-semibold text-text-bright">{theme.label}</div>
+                          <div className="mt-1 text-xs text-text-dim">{theme.description}</div>
                         </div>
                         <span className={`mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full border text-[11px] font-bold ${isActive ? 'border-primary bg-primary text-white' : 'border-surface-hover bg-surface text-text-dim group-hover:border-primary/40'}`}>
                           {isActive ? '✓' : ''}
@@ -192,12 +201,12 @@ export default function AppearanceSettingsPage() {
                 <p className="mt-2 text-sm text-text-dim">{t('appearance.preview_subtitle')}</p>
               </div>
               <div className="rounded-full border border-surface-hover bg-surface px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-dim">
-                {activeTab === 'boards' ? previewBoardTheme.label : pieceSets.find((set) => set.id === previewPieceStyle)?.label ?? pieceSet.label}
+                {activeTab === 'boards' ? previewBoardTheme.label : previewPieceTheme.label}
               </div>
             </div>
 
             <div className="mt-6 flex justify-center">
-              <PreviewBoard boardTheme={previewBoardTheme} pieceStyle={previewPieceStyle} />
+              <PreviewBoard boardTheme={previewBoardTheme} pieceThemeId={previewPieceThemeId} />
             </div>
 
             <div className="mt-6 grid gap-3">
@@ -207,9 +216,12 @@ export default function AppearanceSettingsPage() {
                 <div className="mt-1 text-xs text-text-dim">{previewBoardTheme.description}</div>
               </div>
               <div className="rounded-2xl border border-surface-hover bg-surface px-4 py-3">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-text-dim">{t('appearance.preview_pieces')}</div>
-                <div className="mt-1 text-sm font-semibold text-text-bright">{pieceSets.find((set) => set.id === previewPieceStyle)?.label ?? pieceSet.label}</div>
-                <div className="mt-1 text-xs text-text-dim">{pieceSets.find((set) => set.id === previewPieceStyle)?.description ?? pieceSet.description}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-text-dim">{t('appearance.preview_piece_theme')}</div>
+                <div className="mt-1 text-sm font-semibold text-text-bright">{previewPieceTheme.label}</div>
+                <div className="mt-1 text-xs text-text-dim">{previewPieceTheme.description}</div>
+                <div className="mt-3 rounded-xl border border-surface-hover bg-surface-alt/80 px-3 py-2 text-[11px] uppercase tracking-[0.18em] text-text-dim">
+                  {t('appearance.core_shape_label')}: <span className="font-semibold text-text-bright">{corePieceShapeLabel}</span>
+                </div>
               </div>
             </div>
           </aside>

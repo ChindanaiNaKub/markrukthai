@@ -10,8 +10,8 @@ vi.mock('../components/Header', () => ({
 }));
 
 vi.mock('../components/PieceSVG', () => ({
-  default: ({ pieceStyleId, type, color }: { pieceStyleId?: string; type: string; color: string }) => (
-    <div data-testid={`piece-svg-${pieceStyleId ?? 'context'}-${type}-${color}`} />
+  default: ({ pieceThemeId, type, color }: { pieceThemeId?: string; type: string; color: string }) => (
+    <div data-testid={`piece-svg-${pieceThemeId ?? 'context'}-${type}-${color}`} />
   ),
 }));
 
@@ -32,19 +32,19 @@ describe('AppearanceSettingsPage', () => {
     localStorage.clear();
   });
 
-  it('persists board and piece theme selections immediately', async () => {
+  it('persists board and piece color theme selections immediately', async () => {
     renderPage();
 
     fireEvent.click(screen.getByRole('button', { name: /rosewood/i }));
-    fireEvent.click(screen.getByRole('button', { name: /pieces/i }));
-    fireEvent.click(screen.getByRole('button', { name: /ivory hall/i }));
+    fireEvent.click(screen.getByRole('button', { name: /piece colors/i }));
+    fireEvent.click(screen.getByRole('button', { name: /jade & bone/i }));
 
     await waitFor(() => {
       expect(localStorage.getItem('thaichess-board-theme')).toBe('rosewood');
-      expect(localStorage.getItem('thaichess-piece-style')).toBe('ivory');
+      expect(localStorage.getItem('thaichess-piece-theme')).toBe('jade-bone');
     });
 
     expect(screen.getAllByText('Rosewood').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Ivory Hall').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Jade & Bone').length).toBeGreaterThan(0);
   });
 });

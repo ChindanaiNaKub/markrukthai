@@ -7,11 +7,12 @@ import {
   type BoardThemeId,
 } from '../themes/boards';
 import {
-  DEFAULT_PIECE_STYLE,
-  PIECE_SETS,
-  getPieceSetById,
-  type PieceSetConfig,
-  type PieceStyle,
+  CORE_PIECE_SHAPE_LABEL,
+  DEFAULT_PIECE_THEME_ID,
+  PIECE_THEMES,
+  getPieceThemeById,
+  type PieceThemeConfig,
+  type PieceThemeId,
 } from '../themes/pieces';
 
 type BoardAppearanceContextValue = {
@@ -19,28 +20,49 @@ type BoardAppearanceContextValue = {
   setBoardThemeId: (themeId: BoardThemeId) => void;
   boardTheme: BoardThemeConfig;
   boardThemes: readonly BoardThemeConfig[];
-  pieceStyle: PieceStyle;
-  setPieceStyle: (style: PieceStyle) => void;
-  pieceSet: PieceSetConfig;
-  pieceSets: readonly PieceSetConfig[];
+  pieceThemeId: PieceThemeId;
+  setPieceThemeId: (themeId: PieceThemeId) => void;
+  pieceTheme: PieceThemeConfig;
+  pieceThemes: readonly PieceThemeConfig[];
+  corePieceShapeLabel: string;
 };
 
-type PieceStyleContextValue = {
-  pieceStyle: PieceStyle;
-  setPieceStyle: (style: PieceStyle) => void;
-};
-
-const PIECE_STORAGE_KEY = 'thaichess-piece-style';
+const PIECE_STORAGE_KEY = 'thaichess-piece-theme';
+const LEGACY_PIECE_STORAGE_KEY = 'thaichess-piece-style';
 const BOARD_STORAGE_KEY = 'thaichess-board-theme';
 
 const BoardAppearanceContext = createContext<BoardAppearanceContextValue | null>(null);
 
-function getInitialPieceStyle(): PieceStyle {
-  if (typeof window === 'undefined') return DEFAULT_PIECE_STYLE;
+function normalizeLegacyPieceTheme(saved: string | null): PieceThemeId {
+  switch (saved) {
+    case 'classic':
+    case 'traditional':
+    case 'classic-ivory-ink':
+      return 'classic-ivory-ink';
+    case 'obsidian':
+    case 'obsidian-pearl':
+      return 'obsidian-pearl';
+    case 'western':
+    case 'ivory':
+    case 'gold-ebony':
+      return 'gold-ebony';
+    case 'glyph':
+    case 'jade-bone':
+      return 'jade-bone';
+    case 'crimson-sand':
+      return 'crimson-sand';
+    default:
+      return DEFAULT_PIECE_THEME_ID;
+  }
+}
+
+function getInitialPieceTheme(): PieceThemeId {
+  if (typeof window === 'undefined') return DEFAULT_PIECE_THEME_ID;
 
   const saved = window.localStorage.getItem(PIECE_STORAGE_KEY);
-  if (saved === 'traditional') return 'classic';
-  return getPieceSetById(saved).id;
+  if (saved) return getPieceThemeById(saved).id;
+
+  return normalizeLegacyPieceTheme(window.localStorage.getItem(LEGACY_PIECE_STORAGE_KEY));
 }
 
 function getInitialBoardTheme(): BoardThemeId {
@@ -49,12 +71,13 @@ function getInitialBoardTheme(): BoardThemeId {
 }
 
 export function AppearanceProvider({ children }: { children: React.ReactNode }) {
-  const [pieceStyle, setPieceStyle] = useState<PieceStyle>(getInitialPieceStyle);
+  const [pieceThemeId, setPieceThemeId] = useState<PieceThemeId>(getInitialPieceTheme);
   const [boardThemeId, setBoardThemeId] = useState<BoardThemeId>(getInitialBoardTheme);
 
   useEffect(() => {
-    window.localStorage.setItem(PIECE_STORAGE_KEY, pieceStyle);
-  }, [pieceStyle]);
+    window.localStorage.setItem(PIECE_STORAGE_KEY, pieceThemeId);
+    window.localStorage.removeItem(LEGACY_PIECE_STORAGE_KEY);
+  }, [pieceThemeId]);
 
   useEffect(() => {
     window.localStorage.setItem(BOARD_STORAGE_KEY, boardThemeId);
@@ -62,19 +85,20 @@ export function AppearanceProvider({ children }: { children: React.ReactNode }) 
 
   const value = useMemo<BoardAppearanceContextValue>(() => {
     const boardTheme = getBoardThemeById(boardThemeId);
-    const pieceSet = getPieceSetById(pieceStyle);
+    const pieceTheme = getPieceThemeById(pieceThemeId);
 
     return {
       boardThemeId,
       setBoardThemeId,
       boardTheme,
       boardThemes: BOARD_THEMES,
-      pieceStyle,
-      setPieceStyle,
-      pieceSet,
-      pieceSets: PIECE_SETS,
+      pieceThemeId,
+      setPieceThemeId,
+      pieceTheme,
+      pieceThemes: PIECE_THEMES,
+      corePieceShapeLabel: CORE_PIECE_SHAPE_LABEL,
     };
-  }, [boardThemeId, pieceStyle]);
+  }, [boardThemeId, pieceThemeId]);
 
   return (
     <BoardAppearanceContext.Provider value={value}>
@@ -91,9 +115,4 @@ export function useBoardAppearance() {
     throw new Error('useBoardAppearance must be used within AppearanceProvider');
   }
   return context;
-}
-
-export function usePieceStyle(): PieceStyleContextValue {
-  const { pieceStyle, setPieceStyle } = useBoardAppearance();
-  return { pieceStyle, setPieceStyle };
 }

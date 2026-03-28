@@ -1,7 +1,11 @@
 import type { PieceColor } from '@shared/types';
 
-export type PieceStyle = 'classic' | 'western' | 'glyph' | 'ivory' | 'obsidian';
-export type PieceRenderer = 'traditional' | 'western' | 'glyph';
+export type PieceThemeId =
+  | 'classic-ivory-ink'
+  | 'obsidian-pearl'
+  | 'gold-ebony'
+  | 'jade-bone'
+  | 'crimson-sand';
 
 export interface TraditionalPiecePalette {
   fillTop: string;
@@ -12,46 +16,20 @@ export interface TraditionalPiecePalette {
   promotedDot: string;
 }
 
-export interface WesternPiecePalette {
-  fill: string;
-  stroke: string;
-  accent: string;
-}
-
-export interface GlyphPiecePalette extends WesternPiecePalette {
-  text: string;
-  base: string;
-}
-
-type PieceSetBase = {
-  id: PieceStyle;
+export interface PieceThemeConfig {
+  id: PieceThemeId;
   label: string;
   description: string;
-};
-
-type TraditionalPieceSet = PieceSetBase & {
-  renderer: 'traditional';
   colors: Record<PieceColor, TraditionalPiecePalette>;
-};
+}
 
-type WesternPieceSet = PieceSetBase & {
-  renderer: 'western';
-  colors: Record<PieceColor, WesternPiecePalette>;
-};
+export const CORE_PIECE_SHAPE_LABEL = 'Makruk Classic';
 
-type GlyphPieceSet = PieceSetBase & {
-  renderer: 'glyph';
-  colors: Record<PieceColor, GlyphPiecePalette>;
-};
-
-export type PieceSetConfig = TraditionalPieceSet | WesternPieceSet | GlyphPieceSet;
-
-export const PIECE_SETS: PieceSetConfig[] = [
+export const PIECE_THEMES: PieceThemeConfig[] = [
   {
-    id: 'classic',
-    label: 'Makruk Classic',
-    description: 'Traditional Thai silhouettes with warm ivory and ink.',
-    renderer: 'traditional',
+    id: 'classic-ivory-ink',
+    label: 'Classic Ivory & Ink',
+    description: 'The clearest traditional Makruk look with warm ivory against charcoal ink.',
     colors: {
       white: {
         fillTop: '#faf2e4',
@@ -72,91 +50,101 @@ export const PIECE_SETS: PieceSetConfig[] = [
     },
   },
   {
-    id: 'obsidian',
-    label: 'Makruk Obsidian',
-    description: 'A darker lacquered traditional set with stronger contrast.',
-    renderer: 'traditional',
+    id: 'obsidian-pearl',
+    label: 'Obsidian & Pearl',
+    description: 'Strong contrast with bright pearl whites and deep lacquered blacks.',
     colors: {
       white: {
-        fillTop: '#fff6ea',
-        fillBase: '#f3e4cf',
-        fillBottom: '#d4b791',
-        stroke: '#5f4528',
-        shadow: 'rgba(66, 42, 21, 0.18)',
-        promotedDot: '#b63d1c',
+        fillTop: '#fffaf1',
+        fillBase: '#f7ecda',
+        fillBottom: '#ddc9ab',
+        stroke: '#67533a',
+        shadow: 'rgba(78, 60, 37, 0.18)',
+        promotedDot: '#bf3d35',
       },
       black: {
-        fillTop: '#434854',
-        fillBase: '#272b33',
-        fillBottom: '#12151b',
-        stroke: '#0b0d11',
+        fillTop: '#4a5058',
+        fillBase: '#262b33',
+        fillBottom: '#0f1217',
+        stroke: '#07090d',
         shadow: 'rgba(0, 0, 0, 0.24)',
-        promotedDot: '#d17b5f',
+        promotedDot: '#d87366',
       },
     },
   },
   {
-    id: 'western',
-    label: 'Tournament',
-    description: 'Clean competitive western pieces with crisp outlines.',
-    renderer: 'western',
+    id: 'gold-ebony',
+    label: 'Gold & Ebony',
+    description: 'Readable gilded highlights without sacrificing silhouette clarity.',
     colors: {
       white: {
-        fill: '#fbfbfa',
-        stroke: '#2c2d30',
-        accent: '#d8c3a1',
+        fillTop: '#fff3d7',
+        fillBase: '#f1d9a5',
+        fillBottom: '#c9a15a',
+        stroke: '#6a4d1d',
+        shadow: 'rgba(101, 70, 20, 0.2)',
+        promotedDot: '#b03628',
       },
       black: {
-        fill: '#232427',
-        stroke: '#d7d7d7',
-        accent: '#4b4f57',
+        fillTop: '#46403c',
+        fillBase: '#231d1a',
+        fillBottom: '#100d0b',
+        stroke: '#050505',
+        shadow: 'rgba(0, 0, 0, 0.26)',
+        promotedDot: '#d39e54',
       },
     },
   },
   {
-    id: 'ivory',
-    label: 'Ivory Hall',
-    description: 'Cream and gilt western pieces with a softer finish.',
-    renderer: 'western',
+    id: 'jade-bone',
+    label: 'Jade & Bone',
+    description: 'Cool green-black against soft bone for quick recognition on modern boards.',
     colors: {
       white: {
-        fill: '#fff8ee',
-        stroke: '#6f5430',
-        accent: '#d8b46f',
+        fillTop: '#f8f2e6',
+        fillBase: '#ece2cf',
+        fillBottom: '#d2bea1',
+        stroke: '#665545',
+        shadow: 'rgba(84, 68, 48, 0.18)',
+        promotedDot: '#b14d45',
       },
       black: {
-        fill: '#59514b',
-        stroke: '#f8eee1',
-        accent: '#a78657',
+        fillTop: '#426158',
+        fillBase: '#243b35',
+        fillBottom: '#10211c',
+        stroke: '#08120f',
+        shadow: 'rgba(0, 0, 0, 0.24)',
+        promotedDot: '#6cb88b',
       },
     },
   },
   {
-    id: 'glyph',
-    label: 'Makruk Glyph',
-    description: 'Minimal illustrated symbols for fast readability.',
-    renderer: 'glyph',
+    id: 'crimson-sand',
+    label: 'Crimson & Sand',
+    description: 'A warmer, more dramatic pair that stays legible in fast play.',
     colors: {
       white: {
-        fill: '#fff8f1',
-        stroke: '#3c2f25',
-        accent: '#d6b48a',
-        text: '#3c2f25',
-        base: '#d6a96c',
+        fillTop: '#fff2df',
+        fillBase: '#efd7b4',
+        fillBottom: '#cfa36d',
+        stroke: '#745130',
+        shadow: 'rgba(94, 64, 26, 0.2)',
+        promotedDot: '#bd3a32',
       },
       black: {
-        fill: '#22242a',
-        stroke: '#666e78',
-        accent: '#4b5663',
-        text: '#d7dee9',
-        base: '#313844',
+        fillTop: '#6f3439',
+        fillBase: '#4b1f24',
+        fillBottom: '#251013',
+        stroke: '#130609',
+        shadow: 'rgba(0, 0, 0, 0.24)',
+        promotedDot: '#de9f72',
       },
     },
   },
 ];
 
-export const DEFAULT_PIECE_STYLE: PieceStyle = 'classic';
+export const DEFAULT_PIECE_THEME_ID: PieceThemeId = 'classic-ivory-ink';
 
-export function getPieceSetById(id: string | null | undefined): PieceSetConfig {
-  return PIECE_SETS.find((pieceSet) => pieceSet.id === id) ?? PIECE_SETS[0];
+export function getPieceThemeById(id: string | null | undefined): PieceThemeConfig {
+  return PIECE_THEMES.find((theme) => theme.id === id) ?? PIECE_THEMES[0];
 }
