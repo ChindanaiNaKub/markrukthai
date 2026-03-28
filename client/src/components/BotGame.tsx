@@ -17,10 +17,9 @@ import MoveHistory from './MoveHistory';
 import GameOverModal from './GameOverModal';
 import GameOverPanel from './GameOverPanel';
 import Header from './Header';
-import GameHeaderBar from './GameHeaderBar';
 import PieceSVG from './PieceSVG';
 import Clock from './Clock';
-import GameScreenLayout from './GameScreenLayout';
+import InGameShell from './InGameShell';
 
 const DEFAULT_PLAY_TIME_MS = 10 * 60 * 1000;
 const LOCAL_CLOCK_TICK_MS = 500;
@@ -523,10 +522,10 @@ export default function BotGame() {
   };
 
   return (
-    <div className="bg-surface flex min-h-screen flex-col lg:h-dvh lg:overflow-hidden" tabIndex={-1}>
-      <GameHeaderBar
+    <>
+      <InGameShell
         onHome={() => navigate('/')}
-        meta={
+        headerMeta={
           <>
             <label className="flex items-center gap-2">
               <span className="hidden uppercase tracking-[0.2em] text-[10px] text-text-dim lg:inline">{t('game.piece_style')}</span>
@@ -547,9 +546,6 @@ export default function BotGame() {
             </span>
           </>
         }
-      />
-
-      <GameScreenLayout
         topPanel={
           <Clock
             time={botColor === 'white' ? gameState.whiteTime : gameState.blackTime}
@@ -721,6 +717,6 @@ export default function BotGame() {
           onClose={() => setShowGameOverModal(false)}
         />
       )}
-    </div>
+    </>
   );
 }
