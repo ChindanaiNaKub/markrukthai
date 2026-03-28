@@ -149,6 +149,9 @@ const EN: Record<string, string> = {
   'puzzle.back': 'Back to Puzzles',
   'puzzle.lesson': 'Lesson',
   'puzzle.source': 'Source',
+  'puzzle.source_real_game_ply': 'Real game · ply {ply}',
+  'puzzle.source_starter_pack': 'Starter pack',
+  'puzzle.source_review_batch': 'Review batch',
 
   // Puzzle themes
   'theme.BasicCheckmate': 'Basic Checkmate',
@@ -635,6 +638,9 @@ const TH: Record<string, string> = {
   'puzzle.back': 'กลับไปปริศนา',
   'puzzle.lesson': 'บทเรียน',
   'puzzle.source': 'ที่มา',
+  'puzzle.source_real_game_ply': 'เกมจริง · ply {ply}',
+  'puzzle.source_starter_pack': 'ชุดเริ่มต้น',
+  'puzzle.source_review_batch': 'ชุดรอตรวจ',
 
   // Puzzle themes
   'theme.BasicCheckmate': 'รูปจนพื้นฐาน',
