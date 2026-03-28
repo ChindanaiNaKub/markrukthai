@@ -40,6 +40,105 @@ function formatPlayerLabel(name: string, rating: number | null | undefined): str
   return typeof rating === 'number' ? `${displayName} (${rating})` : displayName;
 }
 
+function formatReasonLabel(reason: string, t: ReturnType<typeof useTranslation>['t']): string {
+  const keyMap: Record<string, string> = {
+    checkmate: 'games.reason_checkmate',
+    resignation: 'games.reason_resignation',
+    timeout: 'games.reason_timeout',
+    stalemate: 'games.reason_stalemate',
+    draw_agreement: 'games.reason_agreement',
+    counting_rule: 'games.reason_counting',
+    draw: 'games.reason_draw',
+  };
+  return keyMap[reason] ? t(keyMap[reason]) : reason;
+}
+
+function formatTimeAgoLabel(timestamp: number, t: ReturnType<typeof useTranslation>['t']): string {
+  const seconds = Math.floor(Date.now() / 1000 - timestamp);
+  if (seconds < 60) return t('time.just_now');
+  if (seconds < 3600) return t('time.min_ago', { n: Math.floor(seconds / 60) });
+  if (seconds < 86400) return t('time.hour_ago', { n: Math.floor(seconds / 3600) });
+  if (seconds < 604800) return t('time.day_ago', { n: Math.floor(seconds / 86400) });
+  return new Date(timestamp * 1000).toLocaleDateString();
+}
+
+function isLowSignalGame(game: GameEntry): boolean {
+  if (game.move_count === 0) return true;
+  if (game.result_reason === 'draw_agreement') return true;
+  if ((game.result_reason === 'timeout' || game.result_reason === 'resignation') && game.move_count <= 1) {
+    return true;
+  }
+  return false;
+}
+
+function renderGameRow(
+  game: GameEntry,
+  navigate: ReturnType<typeof useNavigate>,
+  t: ReturnType<typeof useTranslation>['t'],
+  subdued: boolean = false,
+) {
+  const result = formatResult(game.result, game.result_reason);
+  const whiteRating = game.white_rating_before ?? game.white_rating_after ?? null;
+  const blackRating = game.black_rating_before ?? game.black_rating_after ?? null;
+
+  return (
+    <tr
+      key={game.id}
+      className={`border-b border-surface-hover/50 transition-colors ${
+        subdued
+          ? 'cursor-pointer opacity-70 hover:bg-surface-hover/20 hover:opacity-100'
+          : 'cursor-pointer hover:bg-surface-hover/30'
+      }`}
+      onClick={() => navigate(savedGameAnalysisRoute(game.id))}
+    >
+      <td className="px-3 sm:px-4 py-3">
+        <div className="flex flex-col gap-1">
+          <span className="font-mono text-text-bright text-xs truncate block max-w-[100px] sm:max-w-[140px]">{game.id}</span>
+          <span className="text-text-bright text-xs sm:text-sm truncate block max-w-[220px] sm:max-w-[340px]">
+            {formatPlayerLabel(game.white_name, whiteRating)} vs {formatPlayerLabel(game.black_name, blackRating)}
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] ${
+              game.rated
+                ? 'bg-primary/15 text-primary-light'
+                : 'bg-surface text-text-dim border border-surface-hover'
+            }`}>
+              {game.rated ? t('game.rated') : t('game.casual')}
+            </span>
+            {subdued && (
+              <span className="inline-flex w-fit rounded-full border border-surface-hover bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-text-dim">
+                {t('games.low_signal_badge')}
+              </span>
+            )}
+          </div>
+        </div>
+      </td>
+      <td className="px-3 sm:px-4 py-3 text-text-dim hidden sm:table-cell">
+        {formatTimeControl(game.time_control_initial, game.time_control_increment)}
+      </td>
+      <td className="px-3 sm:px-4 py-3">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-0.5">
+          <span className={`font-bold ${result.color}`}>{result.text}</span>
+          <span className="text-text-dim text-xs">{formatReasonLabel(game.result_reason, t)}</span>
+        </div>
+      </td>
+      <td className="px-3 sm:px-4 py-3 text-text-dim hidden md:table-cell">{game.move_count}</td>
+      <td className="px-3 sm:px-4 py-3 text-text-dim text-right text-xs whitespace-nowrap">
+        {formatTimeAgoLabel(game.finished_at, t)}
+      </td>
+      <td className="px-3 sm:px-4 py-3 text-right">
+        <button
+          onClick={(e) => { e.stopPropagation(); navigate(savedGameAnalysisRoute(game.id)); }}
+          className="px-2.5 py-1 rounded-md border border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary-light text-xs font-semibold transition-colors"
+          title={t('analysis.analyze')}
+        >
+          {t('analysis.view')}
+        </button>
+      </td>
+    </tr>
+  );
+}
+
 export default function GamesPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -50,28 +149,6 @@ export default function GamesPage() {
   const [loading, setLoading] = useState(true);
 
   const limit = 20;
-
-  function formatReason(reason: string): string {
-    const keyMap: Record<string, string> = {
-      checkmate: 'games.reason_checkmate',
-      resignation: 'games.reason_resignation',
-      timeout: 'games.reason_timeout',
-      stalemate: 'games.reason_stalemate',
-      draw_agreement: 'games.reason_agreement',
-      counting_rule: 'games.reason_counting',
-      draw: 'games.reason_draw',
-    };
-    return keyMap[reason] ? t(keyMap[reason]) : reason;
-  }
-
-  function timeAgo(timestamp: number): string {
-    const seconds = Math.floor(Date.now() / 1000 - timestamp);
-    if (seconds < 60) return t('time.just_now');
-    if (seconds < 3600) return t('time.min_ago', { n: Math.floor(seconds / 60) });
-    if (seconds < 86400) return t('time.hour_ago', { n: Math.floor(seconds / 3600) });
-    if (seconds < 604800) return t('time.day_ago', { n: Math.floor(seconds / 86400) });
-    return new Date(timestamp * 1000).toLocaleDateString();
-  }
 
   useEffect(() => {
     setPage(0);
@@ -90,6 +167,8 @@ export default function GamesPage() {
   }, [page, filter]);
 
   const totalPages = Math.ceil(total / limit);
+  const highlightedGames = games.filter(game => !isLowSignalGame(game));
+  const lowSignalGames = games.filter(isLowSignalGame);
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
@@ -155,6 +234,18 @@ export default function GamesPage() {
           </div>
         ) : (
           <>
+            {highlightedGames.length > 0 ? (
+              <div className="mb-3 rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 sm:px-5">
+                <p className="text-sm font-semibold text-text-bright">{t('games.featured_title')}</p>
+                <p className="mt-1 text-xs sm:text-sm text-text-dim">{t('games.featured_desc')}</p>
+              </div>
+            ) : (
+              <div className="mb-3 rounded-2xl border border-surface-hover bg-surface-alt px-4 py-3 sm:px-5">
+                <p className="text-sm font-semibold text-text-bright">{t('games.no_featured_title')}</p>
+                <p className="mt-1 text-xs sm:text-sm text-text-dim">{t('games.no_featured_desc')}</p>
+              </div>
+            )}
+
             <div className="bg-surface-alt rounded-xl border border-surface-hover overflow-x-auto">
               <table className="w-full text-sm min-w-[320px]">
                 <thead>
@@ -168,61 +259,27 @@ export default function GamesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {games.map(game => {
-                    const result = formatResult(game.result, game.result_reason);
-                    const whiteRating = game.white_rating_before ?? game.white_rating_after ?? null;
-                    const blackRating = game.black_rating_before ?? game.black_rating_after ?? null;
-                    return (
-                      <tr
-                        key={game.id}
-                        className="border-b border-surface-hover/50 hover:bg-surface-hover/30 cursor-pointer transition-colors"
-                        onClick={() => navigate(savedGameAnalysisRoute(game.id))}
-                      >
-                        <td className="px-3 sm:px-4 py-3">
-                          <div className="flex flex-col gap-1">
-                            <span className="font-mono text-text-bright text-xs truncate block max-w-[100px] sm:max-w-[140px]">{game.id}</span>
-                            <span className="text-text-bright text-xs sm:text-sm truncate block max-w-[220px] sm:max-w-[340px]">
-                              {formatPlayerLabel(game.white_name, whiteRating)} vs {formatPlayerLabel(game.black_name, blackRating)}
-                            </span>
-                            <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] ${
-                              game.rated
-                                ? 'bg-primary/15 text-primary-light'
-                                : 'bg-surface text-text-dim border border-surface-hover'
-                            }`}>
-                              {game.rated ? t('game.rated') : t('game.casual')}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-3 sm:px-4 py-3 text-text-dim hidden sm:table-cell">
-                          {formatTimeControl(game.time_control_initial, game.time_control_increment)}
-                        </td>
-                        <td className="px-3 sm:px-4 py-3">
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-0.5">
-                            <span className={`font-bold ${result.color}`}>{result.text}</span>
-                            <span className="text-text-dim text-xs">{formatReason(game.result_reason)}</span>
-                          </div>
-                        </td>
-                        <td className="px-3 sm:px-4 py-3 text-text-dim hidden md:table-cell">{game.move_count}</td>
-                        <td className="px-3 sm:px-4 py-3 text-text-dim text-right text-xs whitespace-nowrap">
-                          {timeAgo(game.finished_at)}
-                        </td>
-                        <td className="px-3 sm:px-4 py-3 text-right">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); navigate(savedGameAnalysisRoute(game.id)); }}
-                            className="px-2.5 py-1 rounded-md border border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary-light text-xs font-semibold transition-colors"
-                            title={t('analysis.analyze')}
-                          >
-                            {t('analysis.view')}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {highlightedGames.map(game => renderGameRow(game, navigate, t))}
                 </tbody>
               </table>
             </div>
 
-            {/* Pagination */}
+            {lowSignalGames.length > 0 && (
+              <div className="mt-4 rounded-xl border border-surface-hover bg-surface-alt/70">
+                <div className="border-b border-surface-hover px-4 py-3 sm:px-5">
+                  <p className="text-sm font-semibold text-text-bright">{t('games.low_signal_title')}</p>
+                  <p className="mt-1 text-xs sm:text-sm text-text-dim">{t('games.low_signal_desc')}</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[320px] text-sm">
+                    <tbody>
+                      {lowSignalGames.map(game => renderGameRow(game, navigate, t, true))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
                 <button
