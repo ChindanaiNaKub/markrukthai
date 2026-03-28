@@ -12,6 +12,33 @@ import Board from './Board';
 
 type PuzzleStatus = 'playing' | 'success' | 'failed';
 
+function getPublicPuzzleTitle(title: string): string {
+  return title
+    .replace(/\s*\([0-9a-f]{8}\s*@\s*ply\s*\d+\)$/i, '')
+    .replace(/^Real-Game\s+/i, '')
+    .trim();
+}
+
+function getPuzzleSourceLabel(
+  source: string,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string {
+  const ratedGameMatch = source.match(/^Exported rated game [0-9a-f]+ \(ply (\d+)\)$/i);
+  if (ratedGameMatch) {
+    return t('puzzle.source_real_game_ply', { ply: ratedGameMatch[1] });
+  }
+
+  if (source.startsWith('Starter pack:')) {
+    return t('puzzle.source_starter_pack');
+  }
+
+  if (source.startsWith('Imported candidate batch:')) {
+    return t('puzzle.source_review_batch');
+  }
+
+  return source;
+}
+
 function PuzzleListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -90,7 +117,7 @@ function PuzzleListPage() {
             >
               <div className="flex items-start justify-between mb-2">
                 <h3 className="font-semibold text-text-bright group-hover:text-primary-light transition-colors text-sm sm:text-base">
-                  #{puzzle.id} · {puzzle.title}
+                  #{puzzle.id} · {getPublicPuzzleTitle(puzzle.title)}
                 </h3>
                 {completedPuzzles.has(puzzle.id) && (
                   <span className="text-primary text-sm font-bold">✓</span>
@@ -103,6 +130,9 @@ function PuzzleListPage() {
                 </span>
                 <span className="text-xs text-text-dim px-2 py-0.5 rounded bg-surface border border-surface-hover">
                   {t('theme.' + puzzle.theme)}
+                </span>
+                <span className="text-xs text-text-dim px-2 py-0.5 rounded bg-surface border border-surface-hover">
+                  {getPuzzleSourceLabel(puzzle.source, t)}
                 </span>
                 <span className="text-xs text-text-dim ml-auto">
                   {t('puzzle.to_move', { color: puzzle.toMove === 'white' ? t('common.white') : t('common.black') })}
@@ -435,7 +465,7 @@ function PuzzlePlayer() {
             <div className="bg-surface-alt border border-surface-hover rounded-xl p-4 sm:p-5">
               <div className="flex items-start justify-between mb-1 gap-2">
                 <h3 className="text-base sm:text-lg font-bold text-text-bright">
-                  #{puzzle.id} · {puzzle.title}
+                  #{puzzle.id} · {getPublicPuzzleTitle(puzzle.title)}
                 </h3>
                 <span className={`text-xs px-2 py-0.5 rounded border flex-shrink-0 ${
                   puzzle.difficulty === 'beginner' ? 'bg-green-400/10 border-green-400/30 text-green-400' :
@@ -449,7 +479,9 @@ function PuzzlePlayer() {
               <div className="flex flex-wrap items-center gap-2 text-xs text-text-dim">
                 <span className="px-2 py-0.5 rounded bg-surface border border-surface-hover">{t('theme.' + puzzle.theme)}</span>
                 <span>{t('puzzle.to_move', { color: currentTurnLabel })}</span>
-                <span className="ml-auto">{t('puzzle.source')}: {puzzle.source}</span>
+                <span className="ml-auto rounded bg-surface px-2 py-0.5 border border-surface-hover">
+                  {getPuzzleSourceLabel(puzzle.source, t)}
+                </span>
               </div>
             </div>
 
