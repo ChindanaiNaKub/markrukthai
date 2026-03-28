@@ -5,18 +5,32 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('database rated game persistence', () => {
   let tempDir: string;
+  const originalTursoDatabaseUrl = process.env.TURSO_DATABASE_URL;
+  const originalTursoAuthToken = process.env.TURSO_AUTH_TOKEN;
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-03-22T00:00:00Z'));
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'thaichess-db-test-'));
     process.env.DATA_DIR = tempDir;
+    process.env.TURSO_DATABASE_URL = '';
+    process.env.TURSO_AUTH_TOKEN = '';
   });
 
   afterEach(async () => {
     vi.useRealTimers();
     vi.resetModules();
     delete process.env.DATA_DIR;
+    if (originalTursoDatabaseUrl === undefined) {
+      delete process.env.TURSO_DATABASE_URL;
+    } else {
+      process.env.TURSO_DATABASE_URL = originalTursoDatabaseUrl;
+    }
+    if (originalTursoAuthToken === undefined) {
+      delete process.env.TURSO_AUTH_TOKEN;
+    } else {
+      process.env.TURSO_AUTH_TOKEN = originalTursoAuthToken;
+    }
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
@@ -301,6 +315,8 @@ describe('database rated game persistence', () => {
     expect(allGames).toHaveLength(2);
     expect(ratedGames).toHaveLength(1);
     expect(casualGames).toHaveLength(1);
+    expect(allGames[0]?.id).toBe('rated-game-filter');
+    expect(allGames[1]?.id).toBe('casual-game-filter');
     expect(ratedGames[0]?.id).toBe('rated-game-filter');
     expect(casualGames[0]?.id).toBe('casual-game-filter');
     expect(allCount).toBe(2);
