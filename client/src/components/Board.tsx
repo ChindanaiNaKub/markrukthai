@@ -22,6 +22,7 @@ export interface SquareAnnotation {
 interface BoardProps {
   board: BoardType;
   playerColor: PieceColor | null;
+  draggableColor?: PieceColor | null;
   isMyTurn: boolean;
   legalMoves: Position[];
   selectedSquare: Position | null;
@@ -41,6 +42,7 @@ interface BoardProps {
 export default memo(function Board({
   board,
   playerColor,
+  draggableColor: draggableColorProp,
   isMyTurn,
   legalMoves,
   selectedSquare,
@@ -65,6 +67,7 @@ export default memo(function Board({
   const boardRef = useRef<HTMLDivElement>(null);
 
   const arrows = externalArrows ?? internalArrows;
+  const draggableColor = draggableColorProp ?? playerColor;
   const setArrows = useCallback((newArrows: Arrow[]) => {
     if (onArrowsChange) {
       onArrowsChange(newArrows);
@@ -145,7 +148,7 @@ export default memo(function Board({
 
     if (disabled) return;
     const piece = board[row][col];
-    if (piece && piece.color === playerColor) {
+    if (piece && piece.color === draggableColor) {
       setDragPiece({ row, col });
       setPieceAnimations(prev => new Map(prev).set(`${row}-${col}`, 'lift'));
       setTimeout(() => setPieceAnimations(prev => {
@@ -238,7 +241,7 @@ export default memo(function Board({
   const handleTouchStart = (e: React.TouchEvent, row: number, col: number) => {
     if (disabled) return;
     const piece = board[row][col];
-    if (piece && piece.color === playerColor) {
+    if (piece && piece.color === draggableColor) {
       e.preventDefault();
       setDragPiece({ row, col });
       onSquareClick({ row, col });

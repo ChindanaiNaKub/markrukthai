@@ -18,6 +18,7 @@ import Header from './Header';
 import PieceSVG from './PieceSVG';
 import Clock from './Clock';
 import CapturedPiecesPanel from './CapturedPiecesPanel';
+import GameScreenLayout from './GameScreenLayout';
 
 const DEFAULT_PLAY_TIME_MS = 10 * 60 * 1000;
 const LOCAL_CLOCK_TICK_MS = 500;
@@ -529,9 +530,9 @@ export default function BotGame() {
         </div>
       )}
 
-      <main id="main-content" className="flex-1 flex items-center justify-center px-4 py-3 sm:py-4">
-        <div className="flex flex-col lg:flex-row items-center lg:items-start gap-3 sm:gap-5 w-full max-w-[1100px]">
-          <div className="flex flex-col items-center gap-2 w-full lg:flex-1 lg:max-w-[calc(100vh-180px)] max-w-[720px]">
+      <GameScreenLayout
+        boardColumn={
+          <>
             <Clock
               time={botColor === 'white' ? gameState.whiteTime : gameState.blackTime}
               isActive={gameState.turn === botColor && !gameState.gameOver}
@@ -564,10 +565,10 @@ export default function BotGame() {
               color={playerColor}
               playerName={`${t('common.you')} (${t(playerColor === 'white' ? 'common.white' : 'common.black')})`}
             />
-          </div>
-
-          <div className="flex flex-col gap-3 lg:w-72 w-full max-w-[720px]">
-            {/* Turn indicator (only during play) */}
+          </>
+        }
+        sidePanel={
+          <>
             {!gameState.gameOver && (
               <div className={`
                 rounded-lg px-4 py-3 text-center font-semibold text-sm
@@ -661,9 +662,9 @@ export default function BotGame() {
             >
               {t('common.back_home')}
             </button>
-          </div>
-        </div>
-      </main>
+          </>
+        }
+      />
 
       {gameOverInfo && showGameOverModal && (
         <GameOverModal

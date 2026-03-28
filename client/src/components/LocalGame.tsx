@@ -16,6 +16,7 @@ import GameOverPanel from './GameOverPanel';
 import Header from './Header';
 import Clock from './Clock';
 import CapturedPiecesPanel from './CapturedPiecesPanel';
+import GameScreenLayout from './GameScreenLayout';
 
 const DEFAULT_PLAY_TIME_MS = 10 * 60 * 1000;
 const LOCAL_CLOCK_TICK_MS = 500;
@@ -252,9 +253,9 @@ export default function LocalGame() {
     <div className="min-h-screen bg-surface flex flex-col" tabIndex={-1}>
       <Header subtitle={t('local.title')} />
 
-      <main id="main-content" className="flex-1 flex items-center justify-center px-4 py-4">
-        <div className="flex flex-col lg:flex-row items-center lg:items-start gap-4 sm:gap-6 w-full max-w-[1100px]">
-          <div className="flex flex-col items-center gap-2 sm:gap-3 w-full lg:flex-1 lg:max-w-[calc(100vh-140px)] max-w-[720px]">
+      <GameScreenLayout
+        boardColumn={
+          <>
             <div className="flex items-center gap-2 text-sm">
               <span className="text-text-dim">{t('local.view_as')}</span>
               <button
@@ -282,6 +283,7 @@ export default function LocalGame() {
               <Board
                 board={getDisplayBoard()}
                 playerColor={viewAs}
+                draggableColor={gameState.turn}
                 isMyTurn={!isViewingHistory}
                 legalMoves={isViewingHistory ? [] : legalMoves}
                 selectedSquare={isViewingHistory ? null : selectedSquare}
@@ -304,12 +306,10 @@ export default function LocalGame() {
             />
 
             <div className={`
-              rounded-lg px-6 py-2.5 text-center font-semibold text-base
+              rounded-lg px-4 py-3 text-center font-semibold text-sm w-full
               ${gameState.gameOver
                 ? 'bg-accent/20 text-accent border border-accent/30'
-                : gameState.turn === 'white'
-                  ? 'bg-white/10 text-text-bright border border-white/20'
-                  : 'bg-gray-800/50 text-text-bright border border-gray-600/30'
+                : 'bg-surface-alt text-text-dim border border-surface-hover'
               }
             `}>
               {gameState.gameOver
@@ -317,9 +317,10 @@ export default function LocalGame() {
                 : t('local.turn', { color: colorName(gameState.turn) })
               }
             </div>
-          </div>
-
-          <div className="flex flex-col gap-3 lg:w-72 w-full max-w-[720px]">
+          </>
+        }
+        sidePanel={
+          <>
             {!gameState.gameOver && countingLabel && (
               <div className="rounded-lg px-4 py-3 bg-accent/10 text-accent border border-accent/30">
                 <div className="text-xs uppercase tracking-wide font-semibold mb-1">
@@ -394,9 +395,9 @@ export default function LocalGame() {
                 {t('local.play_online')}
               </button>
             )}
-          </div>
-        </div>
-      </main>
+          </>
+        }
+      />
 
       {gameOverInfo && showGameOverModal && (
         <GameOverModal
