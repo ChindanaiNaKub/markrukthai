@@ -43,6 +43,13 @@ describe('shared SEO routes', () => {
     expect(playOnline.robots).toBeUndefined();
   });
 
+  it('uses cleaned public titles for puzzle metadata', () => {
+    const seo = getPublicSeoRoute('/puzzle/5001', 'https://thaichess.dev');
+
+    expect(seo.title).toBe('Trapped Knight | ThaiChess Puzzle 5001');
+    expect(seo.description).toContain('Win material in 2.');
+  });
+
   it('marks non-public app routes as noindex', () => {
     expect(getPublicSeoRoute(routes.feedback, 'https://thaichess.dev').robots).toBe('noindex, nofollow');
     expect(getPublicSeoRoute(routes.login, 'https://thaichess.dev').robots).toBe('noindex, nofollow');

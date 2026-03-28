@@ -534,14 +534,27 @@ function getRecentGamesWhereClause(filter: RecentGamesFilter): string {
   return 'finished_at IS NOT NULL';
 }
 
+function getRecentGamesOrderByClause(): string {
+  return `
+    CASE
+      WHEN move_count = 0 THEN 1
+      WHEN result_reason = 'draw_agreement' THEN 1
+      WHEN result_reason IN ('timeout', 'resignation') AND move_count <= 1 THEN 1
+      ELSE 0
+    END ASC,
+    finished_at DESC
+  `;
+}
+
 export async function getRecentGames(limit: number = 20, offset: number = 0, filter: RecentGamesFilter = 'all'): Promise<SavedGame[]> {
   try {
     const whereClause = getRecentGamesWhereClause(filter);
+    const orderByClause = getRecentGamesOrderByClause();
     const result = await db.execute({
       sql: `
         SELECT * FROM games
         WHERE ${whereClause}
-        ORDER BY finished_at DESC
+        ORDER BY ${orderByClause}
         LIMIT ? OFFSET ?
       `,
       args: [limit, offset],

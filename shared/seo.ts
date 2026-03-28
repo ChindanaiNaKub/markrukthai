@@ -19,6 +19,13 @@ const defaultKeywords = [
   'Thai chess strategy',
 ];
 
+function getPublicPuzzleSeoTitle(title: string): string {
+  return title
+    .replace(/\s*\([0-9a-f]{8}\s*@\s*ply\s*\d+\)$/i, '')
+    .replace(/^Real-Game\s+/i, '')
+    .trim();
+}
+
 function buildWebsiteSchema(baseUrl: string): Record<string, unknown> {
   return {
     '@context': 'https://schema.org',
@@ -291,7 +298,7 @@ export function getPublicSeoRoute(pathname: string, baseUrl: string): SeoRouteDa
   if (cleanPath.startsWith('/puzzle/')) {
     const id = Number(cleanPath.split('/')[2]);
     const puzzle = PUZZLES.find((entry) => entry.id === id);
-    const puzzleTitle = puzzle?.title ?? `Puzzle ${id}`;
+    const puzzleTitle = puzzle ? getPublicPuzzleSeoTitle(puzzle.title) : `Puzzle ${id}`;
     const puzzleDescription = puzzle?.description ?? 'Interactive ThaiChess puzzle.';
 
     return {
