@@ -223,6 +223,25 @@ describe('Board Component', () => {
       expect(onPieceDrop).toHaveBeenCalledWith({ row: 2, col: 4 }, { row: 3, col: 4 });
     });
 
+    it('should allow dragging the side to move even when board orientation stays white', () => {
+      const onPieceDrop = vi.fn();
+      const { getByTestId } = render(
+        <Board
+          {...createProps({
+            playerColor: 'white',
+            draggableColor: 'black',
+            onPieceDrop,
+          })}
+        />
+      );
+
+      fireEvent.mouseDown(getByTestId('board-square-5-4'), { button: 0, clientX: 450, clientY: 250 });
+      fireEvent.mouseMove(getByTestId('board'), { clientX: 450, clientY: 350 });
+      fireEvent.mouseUp(getByTestId('board'), { button: 0, clientX: 450, clientY: 350 });
+
+      expect(onPieceDrop).toHaveBeenCalledWith({ row: 5, col: 4 }, { row: 4, col: 4 });
+    });
+
     it('should ignore click and touch interactions when disabled', () => {
       const onSquareClick = vi.fn();
       const onPieceDrop = vi.fn();
