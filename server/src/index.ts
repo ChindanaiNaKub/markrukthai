@@ -18,6 +18,9 @@ import { clearSessionCookie, getAuthenticatedUser, getAuthenticatedUserFromCooki
 import { createSocketConnectionHandler, type AuthenticatedSocketData } from './socketHandlers';
 import { shouldServeSpaShell } from './spa';
 import { normalizeLeaderboardLimit, normalizeLeaderboardPage } from './leaderboardPagination';
+import { analyzeGameWithEngine, analyzePositionWithEngine, getBotMoveWithEngine } from './engineGateway';
+import { deserializeAnalysisPosition } from '../../shared/engineAdapter';
+import type { Move } from '../../shared/types';
 
 const app = express();
 const httpServer = createServer(app);
@@ -257,6 +260,53 @@ app.get('/api/game/:id', async (req, res) => {
     return;
   }
   res.status(404).json({ error: 'Game not found' });
+});
+
+app.post('/api/analysis/game', async (req, res) => {
+  const moves = Array.isArray(req.body?.moves) ? req.body.moves as Move[] : null;
+  const depth = Number.isFinite(req.body?.depth) ? Number(req.body.depth) : 2;
+
+  if (!moves) {
+    res.status(400).json({ error: 'moves is required.' });
+    return;
+  }
+
+  const analysis = await analyzeGameWithEngine(moves, depth);
+  res.json({ analysis });
+});
+
+app.post('/api/analysis/position', async (req, res) => {
+  const position = typeof req.body?.position === 'string' ? req.body.position : '';
+  const counting = typeof req.body?.counting === 'string' ? req.body.counting : null;
+  const snapshot = deserializeAnalysisPosition(position, counting);
+
+  if (!snapshot) {
+    res.status(400).json({ error: 'Valid position is required.' });
+    return;
+  }
+
+  const analysis = await analyzePositionWithEngine(snapshot, {
+    depth: Number.isFinite(req.body?.depth) ? Number(req.body.depth) : undefined,
+    movetimeMs: Number.isFinite(req.body?.movetimeMs) ? Number(req.body.movetimeMs) : undefined,
+    nodes: Number.isFinite(req.body?.nodes) ? Number(req.body.nodes) : undefined,
+  }, Number.isFinite(req.body?.multipv) ? Number(req.body.multipv) : 1);
+
+  res.json(analysis);
+});
+
+app.post('/api/bot/move', async (req, res) => {
+  const position = typeof req.body?.position === 'string' ? req.body.position : '';
+  const counting = typeof req.body?.counting === 'string' ? req.body.counting : null;
+  const level = Number.isFinite(req.body?.level) ? Number(req.body.level) : 5;
+  const snapshot = deserializeAnalysisPosition(position, counting);
+
+  if (!snapshot) {
+    res.status(400).json({ error: 'Valid position is required.' });
+    return;
+  }
+
+  const result = await getBotMoveWithEngine(snapshot, level);
+  res.json(result);
 });
 
 app.get('/api/games/recent', async (_req, res) => {

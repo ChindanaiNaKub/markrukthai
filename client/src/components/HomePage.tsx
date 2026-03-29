@@ -451,15 +451,21 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => navigate(routes.bot)}
-                className="bg-surface-alt border border-surface-hover/80 rounded-xl px-4 py-3.5 text-left transition-colors hover:bg-surface-hover/60"
+                className="rounded-xl border border-primary/20 bg-[linear-gradient(135deg,rgba(92,160,26,0.10),rgba(39,30,24,0.92)_45%,rgba(39,30,24,0.98))] px-4 py-3.5 text-left transition-colors hover:bg-surface-hover/60"
               >
-                <div className="flex items-center gap-3">
-                  <BotSVG size={24} className="text-text-bright flex-shrink-0" />
-                  <div>
-                    <div className="text-text-bright text-[0.95rem] font-semibold">{t('home.play_bot')}</div>
-                    <div className="text-text-dim text-xs sm:text-sm">{t('home.play_bot_desc')}</div>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <BotSVG size={24} className="text-text-bright flex-shrink-0" />
+                    <div>
+                      <div className="text-text-bright text-[0.95rem] font-semibold">{t('home.play_bot')}</div>
+                      <div className="text-text-dim text-xs sm:text-sm">{t('home.play_bot_desc')}</div>
+                    </div>
                   </div>
+                  <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-primary-light">
+                    1-10
+                  </span>
                 </div>
+                <div className="mt-3 text-[11px] leading-5 text-text-dim">{t('home.play_bot_long_desc')}</div>
               </button>
 
               <button
