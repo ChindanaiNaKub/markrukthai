@@ -29,6 +29,9 @@ import { analyzeBotWithBinaryEngine, analyzeWithBinaryEngine, hasBinaryEngineCon
 const SERVICE_URL = process.env.FAIRY_STOCKFISH_SERVICE_URL?.trim() || '';
 
 const BOT_LEVEL_MOVETIMES_MS = [40, 60, 80, 110, 150, 200, 250, 300, 350, 400] as const;
+const REVIEW_MOVETIME_MS = 250;
+const REVIEW_MIN_MOVETIME_MS = 80;
+const REVIEW_TOTAL_TARGET_MS = 8000;
 
 function getServiceUrl(pathname: string): string | null {
   if (!SERVICE_URL) return null;
@@ -46,6 +49,12 @@ function clampBotLevel(level: number): number {
 
 function getBotMovetime(level: number): number {
   return BOT_LEVEL_MOVETIMES_MS[clampBotLevel(level) - 1];
+}
+
+export function getReviewMovetime(moveCount: number, requestedMovetimeMs: number = REVIEW_MOVETIME_MS): number {
+  const safeRequested = Math.max(REVIEW_MIN_MOVETIME_MS, Math.round(requestedMovetimeMs));
+  const adaptive = Math.floor(REVIEW_TOTAL_TARGET_MS / Math.max(1, moveCount + 1));
+  return Math.max(REVIEW_MIN_MOVETIME_MS, Math.min(safeRequested, adaptive));
 }
 
 function getFallbackDifficulty(level: number): BotDifficulty {
@@ -156,9 +165,16 @@ export async function analyzePositionWithEngine(
   };
 }
 
-export async function analyzeGameWithEngine(moves: Move[], depth: number = 2): Promise<GameAnalysis> {
+export async function analyzeGameWithEngine(
+  moves: Move[],
+  options?: { movetimeMs?: number; depth?: number },
+  onProgress?: (progress: { current: number; total: number; done: boolean }) => void,
+): Promise<GameAnalysis> {
+  const movetimeMs = getReviewMovetime(moves.length, options?.movetimeMs);
+  const fallbackDepth = options?.depth ?? getFallbackDepth({ movetimeMs });
+
   if (!hasExternalEngineSupport()) {
-    return analyzeGame(moves, depth);
+    return analyzeGame(moves, fallbackDepth, onProgress);
   }
 
   const evaluatedMoves: AnalyzedMove[] = [];
@@ -167,25 +183,27 @@ export async function analyzeGameWithEngine(moves: Move[], depth: number = 2): P
   const blackSummary = createEmptySummary();
 
   let state = createInitialGameState(0, 0);
-  evaluations.push(evaluatePosition(state.board, 'white'));
+  let currentAnalysis = await analyzePositionWithEngine({
+    board: state.board,
+    turn: state.turn,
+    counting: state.counting,
+  }, { movetimeMs, nodes: 0 });
+  evaluations.push(currentAnalysis.evaluation);
 
   for (let moveIndex = 0; moveIndex < moves.length; moveIndex += 1) {
     const move = moves[moveIndex];
     const color = state.turn;
-    const before = await analyzePositionWithEngine({
-      board: state.board,
-      turn: state.turn,
-      counting: state.counting,
-    }, { depth, nodes: 0 });
+    const before = currentAnalysis;
 
     const nextState = makeMove(state, move.from, move.to);
     if (!nextState) break;
 
-    const after = await analyzePositionWithEngine({
+    currentAnalysis = await analyzePositionWithEngine({
       board: nextState.board,
       turn: nextState.turn,
       counting: nextState.counting,
-    }, { depth, nodes: 0 });
+    }, { movetimeMs, nodes: 0 });
+    const after = currentAnalysis;
 
     evaluations.push(after.evaluation);
 
@@ -227,6 +245,7 @@ export async function analyzeGameWithEngine(moves: Move[], depth: number = 2): P
     }
 
     state = nextState;
+    onProgress?.({ current: moveIndex + 1, total: moves.length, done: moveIndex === moves.length - 1 });
   }
 
   return {
