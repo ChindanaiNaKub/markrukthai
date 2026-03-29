@@ -13,6 +13,9 @@ export interface AnalyzedMove {
   evalBefore: number;
   evalAfter: number;
   evalDelta: number;
+  winPercentBefore: number;
+  winPercentAfter: number;
+  moveAccuracy: number;
   bestMove: { from: Position; to: Position } | null;
   bestEval: number;
   classification: MoveClassification;
@@ -35,6 +38,12 @@ export interface GameAnalysis {
     source: EngineStats['source'];
   };
 }
+
+const WIN_PERCENT_CP_FACTOR = 0.00368208;
+const ACCURACY_SCALE = 103.1668;
+const ACCURACY_DECAY = 0.04354;
+const ACCURACY_OFFSET = 3.1669;
+const WIN_PERCENT_CP_CLAMP = 1000;
 
 const PIECE_VALUES: Record<PieceType, number> = {
   K: 0,
@@ -269,13 +278,44 @@ export function findBestMove(
   return { move: bestMove, eval: bestEval };
 }
 
-export function classifyMove(evalDelta: number, isExactBestMove: boolean): MoveClassification {
-  const loss = Math.max(0, evalDelta);
-  if (isExactBestMove) return 'best';
-  if (loss <= 15) return 'excellent';
-  if (loss <= 45) return 'good';
-  if (loss <= 100) return 'inaccuracy';
-  if (loss <= 220) return 'mistake';
+function clampCentipawns(rawEval: number): number {
+  if (rawEval >= 90000) return WIN_PERCENT_CP_CLAMP;
+  if (rawEval <= -90000) return -WIN_PERCENT_CP_CLAMP;
+  return Math.max(-WIN_PERCENT_CP_CLAMP, Math.min(WIN_PERCENT_CP_CLAMP, rawEval));
+}
+
+function clampPercent(value: number): number {
+  return Math.max(0, Math.min(100, value));
+}
+
+export function centipawnToWinPercent(rawEval: number): number {
+  const cp = clampCentipawns(rawEval);
+  return 50 + 50 * (2 / (1 + Math.exp(-WIN_PERCENT_CP_FACTOR * cp)) - 1);
+}
+
+export function moveAccuracyFromWinPercent(winPercentBefore: number, winPercentAfter: number): number {
+  const drop = Math.max(0, winPercentBefore - winPercentAfter);
+  return clampPercent(ACCURACY_SCALE * Math.exp(-ACCURACY_DECAY * drop) - ACCURACY_OFFSET);
+}
+
+export function getMoveWinPercents(
+  evalBefore: number,
+  evalAfter: number,
+  color: PieceColor,
+): { before: number; after: number } {
+  const perspective = color === 'white' ? 1 : -1;
+  return {
+    before: centipawnToWinPercent(evalBefore * perspective),
+    after: centipawnToWinPercent(evalAfter * perspective),
+  };
+}
+
+export function classifyMove(moveAccuracy: number, isExactBestMove: boolean): MoveClassification {
+  if (isExactBestMove || moveAccuracy >= 98) return 'best';
+  if (moveAccuracy >= 90) return 'excellent';
+  if (moveAccuracy >= 75) return 'good';
+  if (moveAccuracy >= 50) return 'inaccuracy';
+  if (moveAccuracy >= 20) return 'mistake';
   return 'blunder';
 }
 
@@ -316,13 +356,79 @@ export function createEmptySummary(): Record<MoveClassification, number> {
   return { best: 0, excellent: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0 };
 }
 
-export function computeAccuracy(classifications: MoveClassification[]): number {
-  if (classifications.length === 0) return 100;
-  const weights: Record<MoveClassification, number> = {
-    best: 1.0, excellent: 0.95, good: 0.85, inaccuracy: 0.6, mistake: 0.3, blunder: 0.0,
-  };
-  const total = classifications.reduce((sum, c) => sum + weights[c], 0);
-  return Math.round((total / classifications.length) * 100);
+function harmonicMean(values: number[]): number {
+  if (values.length === 0) return 100;
+  if (values.some(value => value <= 0)) return 0;
+
+  const denominator = values.reduce((sum, value) => sum + (1 / value), 0);
+  return denominator === 0 ? 100 : values.length / denominator;
+}
+
+function arithmeticMean(values: number[]): number {
+  if (values.length === 0) return 100;
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function standardDeviation(values: number[]): number {
+  if (values.length <= 1) return 0;
+  const mean = arithmeticMean(values);
+  const variance = values.reduce((sum, value) => sum + ((value - mean) ** 2), 0) / values.length;
+  return Math.sqrt(variance);
+}
+
+function getSideMoves(moves: AnalyzedMove[], color: PieceColor): AnalyzedMove[] {
+  return moves.filter(move => move.color === color);
+}
+
+function buildSideWinPercentSeries(sideMoves: AnalyzedMove[]): number[] {
+  if (sideMoves.length === 0) return [];
+  return [
+    sideMoves[0].winPercentBefore,
+    ...sideMoves.map(move => move.winPercentAfter),
+  ];
+}
+
+function getWindowBounds(index: number, seriesLength: number, windowSize: number): { start: number; end: number } {
+  const clampedWindowSize = Math.min(seriesLength, Math.max(1, windowSize));
+  let start = Math.max(0, index - Math.floor(clampedWindowSize / 2));
+  let end = start + clampedWindowSize;
+
+  if (end > seriesLength) {
+    end = seriesLength;
+    start = Math.max(0, end - clampedWindowSize);
+  }
+
+  return { start, end };
+}
+
+function volatilityWeightedMean(moveAccuracies: number[], winSeries: number[]): number {
+  if (moveAccuracies.length === 0) return 100;
+
+  const windowSize = Math.min(8, Math.max(2, Math.round(Math.sqrt(moveAccuracies.length))));
+  const weighted = moveAccuracies.map((accuracy, index) => {
+    const pointIndex = index + 1;
+    const { start, end } = getWindowBounds(pointIndex, winSeries.length, windowSize);
+    const weight = standardDeviation(winSeries.slice(start, end));
+    return { accuracy, weight };
+  });
+
+  const totalWeight = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  if (totalWeight === 0) {
+    return arithmeticMean(moveAccuracies);
+  }
+
+  return weighted.reduce((sum, entry) => sum + (entry.accuracy * entry.weight), 0) / totalWeight;
+}
+
+export function computeAccuracy(moves: AnalyzedMove[], color: PieceColor): number {
+  const sideMoves = getSideMoves(moves, color);
+  if (sideMoves.length === 0) return 100;
+
+  const moveAccuracies = sideMoves.map(move => move.moveAccuracy);
+  const harmonic = harmonicMean(moveAccuracies);
+  const weighted = volatilityWeightedMean(moveAccuracies, buildSideWinPercentSeries(sideMoves));
+
+  return Math.round(clampPercent((harmonic + weighted) / 2));
 }
 
 export interface AnalysisProgress {
@@ -341,8 +447,6 @@ export function analyzeGame(
   const evaluations: number[] = [];
   const whiteSummary = createEmptySummary();
   const blackSummary = createEmptySummary();
-  const whiteClassifications: MoveClassification[] = [];
-  const blackClassifications: MoveClassification[] = [];
 
   let state = createInitialGameState(0, 0);
   const initialEval = evaluatePosition(state.board, 'white');
@@ -384,7 +488,9 @@ export function analyzeGame(
       && best.move.to.row === move.to.row
       && best.move.to.col === move.to.col;
 
-    const classification = classifyMove(evalDelta, isExactBestMove);
+    const { before: winPercentBefore, after: winPercentAfter } = getMoveWinPercents(evalBefore, evalAfter, color);
+    const moveAccuracy = isExactBestMove ? 100 : moveAccuracyFromWinPercent(winPercentBefore, winPercentAfter);
+    const classification = classifyMove(moveAccuracy, isExactBestMove);
 
     analyzedMoves.push({
       move,
@@ -392,6 +498,9 @@ export function analyzeGame(
       evalBefore,
       evalAfter,
       evalDelta,
+      winPercentBefore,
+      winPercentAfter,
+      moveAccuracy,
       bestMove: best.move ? { from: best.move.from, to: best.move.to } : null,
       bestEval: bestEvalNormalized,
       classification,
@@ -400,10 +509,8 @@ export function analyzeGame(
 
     if (color === 'white') {
       whiteSummary[classification]++;
-      whiteClassifications.push(classification);
     } else {
       blackSummary[classification]++;
-      blackClassifications.push(classification);
     }
 
     state = newState;
@@ -414,8 +521,8 @@ export function analyzeGame(
   return {
     moves: analyzedMoves,
     evaluations,
-    whiteAccuracy: computeAccuracy(whiteClassifications),
-    blackAccuracy: computeAccuracy(blackClassifications),
+    whiteAccuracy: computeAccuracy(analyzedMoves, 'white'),
+    blackAccuracy: computeAccuracy(analyzedMoves, 'black'),
     summary: { white: whiteSummary, black: blackSummary },
     engine: {
       label: 'Local analysis',
