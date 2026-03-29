@@ -56,7 +56,7 @@ export function useGameSocket(options: UseGameSocketOptions): UseGameSocketRetur
       joinedRef.current = false;
     };
 
-    const handleJoined = ({ color, gameState: gs }: { color: PieceColor; gameState: ClientGameState }) => {
+    const handleJoined = ({ color, gameState: gs }: { color: PieceColor | null; gameState: ClientGameState }) => {
       setPlayerColor(color);
       setGameState(gs);
       setError(null);

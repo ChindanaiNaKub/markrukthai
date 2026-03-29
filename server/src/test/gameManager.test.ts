@@ -75,6 +75,22 @@ describe('GameManager', () => {
     });
   });
 
+  it('keeps full-game player joins separate from explicit spectator joins', () => {
+    const manager = new GameManager();
+    const room = manager.createGame(timeControl);
+    manager.joinGame(room.id, 'white-socket');
+    manager.joinGame(room.id, 'black-socket');
+
+    expect(manager.joinGame(room.id, 'extra-socket')).toBeNull();
+    expect(manager.getGame(room.id)?.spectators).toEqual([]);
+
+    const spectatorRoom = manager.spectateGame(room.id, 'extra-socket');
+    expect(spectatorRoom?.spectators).toEqual(['extra-socket']);
+
+    const spectatorState = manager.getClientGameState(spectatorRoom!, 'extra-socket');
+    expect(spectatorState.playerColor).toBeNull();
+  });
+
   it('creates a rematch with colors swapped', () => {
     const manager = new GameManager();
     const room = manager.createGame(timeControl);
@@ -222,6 +238,47 @@ describe('GameManager', () => {
 
     expect(manager.getBlockingPlayerGame('white-socket')).toBeNull();
     expect(manager.getPlayerGame('white-socket')).toBeNull();
+  });
+
+  it('builds a safe public live-games list from quick-play rooms only', () => {
+    const manager = new GameManager();
+
+    const privateRoom = manager.createGame(timeControl, { gameMode: 'private', rated: false });
+    manager.joinGame(privateRoom.id, 'private-white', { displayName: 'Private White' });
+    manager.joinGame(privateRoom.id, 'private-black', { displayName: 'Private Black' });
+
+    const liveQuickPlay = manager.createGame(timeControl, { gameMode: 'quick_play', rated: true });
+    manager.joinGame(liveQuickPlay.id, 'live-white', { displayName: 'Rated White', rating: 1820 });
+    manager.joinGame(liveQuickPlay.id, 'live-black', { displayName: 'Rated Black', rating: 1765 });
+    manager.spectateGame(liveQuickPlay.id, 'spectator-a');
+    const liveRoom = manager.getGame(liveQuickPlay.id)!;
+    liveRoom.gameState.moveCount = 21;
+    liveRoom.gameState.lastMoveTime = Date.now();
+
+    const finishedQuickPlay = manager.createGame(timeControl, { gameMode: 'quick_play', rated: false });
+    manager.joinGame(finishedQuickPlay.id, 'finished-white', { displayName: 'Guest One' });
+    manager.joinGame(finishedQuickPlay.id, 'finished-black', { displayName: 'Guest Two' });
+    manager.resign(finishedQuickPlay.id, 'finished-white');
+
+    const liveOnly = manager.getPublicLiveGames({ status: 'live' });
+    expect(liveOnly).toHaveLength(1);
+    expect(liveOnly[0]).toMatchObject({
+      id: liveQuickPlay.id,
+      status: 'playing',
+      whitePlayerName: 'Rated White',
+      blackPlayerName: 'Rated Black',
+      whiteRating: 1820,
+      blackRating: 1765,
+      spectatorCount: 1,
+      moveCount: 21,
+      rated: true,
+      gameMode: 'quick_play',
+    });
+
+    const allPublic = manager.getPublicLiveGames({ status: 'all' }).map((game) => game.id);
+    expect(allPublic).toContain(liveQuickPlay.id);
+    expect(allPublic).toContain(finishedQuickPlay.id);
+    expect(allPublic).not.toContain(privateRoom.id);
   });
 
   it('removes waiting rooms when the only player leaves before the game starts', () => {

@@ -29,6 +29,44 @@ type IoLike = {
   };
 };
 
+function getParticipantSocketIds(room: GameRoom) {
+  return [room.white, room.black, ...room.spectators].filter((socketId): socketId is string => Boolean(socketId));
+}
+
+function emitGameStateToParticipants(io: IoLike, gameManager: GameManager, room: GameRoom, excludeSocketId?: string) {
+  getParticipantSocketIds(room).forEach((participantSocketId) => {
+    if (participantSocketId === excludeSocketId) return;
+    io.to(participantSocketId).emit('game_state', gameManager.getClientGameState(room, participantSocketId));
+  });
+}
+
+function emitMoveToParticipants(io: IoLike, gameManager: GameManager, room: GameRoom, move: GameRoom['gameState']['moveHistory'][number]) {
+  getParticipantSocketIds(room).forEach((participantSocketId) => {
+    io.to(participantSocketId).emit('move_made', {
+      move,
+      gameState: gameManager.getClientGameState(room, participantSocketId),
+    });
+  });
+}
+
+function emitGameOverToParticipants(
+  io: IoLike,
+  gameManager: GameManager,
+  room: GameRoom,
+  reason: string,
+  ratingChange: RatingChangeSummary | null,
+) {
+  getParticipantSocketIds(room).forEach((participantSocketId) => {
+    const isPlayerSocket = participantSocketId === room.white || participantSocketId === room.black;
+    io.to(participantSocketId).emit('game_over', {
+      reason,
+      winner: room.gameState.winner,
+      gameState: gameManager.getClientGameState(room, participantSocketId),
+      ratingChange: isPlayerSocket ? ratingChange : null,
+    });
+  });
+}
+
 export const SOCKET_RATE_LIMITS = {
   create_game: { windowMs: 60 * 1000, max: 6 },
   join_game: { windowMs: 60 * 1000, max: 20 },
@@ -268,7 +306,14 @@ export function createSocketConnectionHandler(deps: SocketHandlerDeps) {
         rating: socket.data.authUser?.rating ?? null,
       });
       if (!result) {
-        rejectSocketEvent(deps.monitoring, socket, 'join_game', 'Unable to join game. Game may be full or not found.', { gameId });
+        const existingRoom = deps.gameManager.getGame(gameId);
+        rejectSocketEvent(
+          deps.monitoring,
+          socket,
+          'join_game',
+          existingRoom ? 'Game is full. Redirecting to spectator mode.' : 'Game not found',
+          { gameId },
+        );
         return;
       }
 
@@ -276,7 +321,7 @@ export function createSocketConnectionHandler(deps: SocketHandlerDeps) {
       socket.join(gameId);
 
       socket.emit('game_joined', { color, gameState: deps.gameManager.getClientGameState(room, socket.id) });
-      socket.to(gameId).emit('game_state', deps.gameManager.getClientGameState(room, room.white || ''));
+      emitGameStateToParticipants(deps.io, deps.gameManager, room, socket.id);
 
       if (reconnected && room.status === 'playing') {
         const opponentId = color === 'white' ? room.black : room.white;
@@ -290,22 +335,7 @@ export function createSocketConnectionHandler(deps: SocketHandlerDeps) {
           if (updatedRoom.gameState.gameOver) {
             const reason = updatedRoom.gameState.whiteTime <= 0 || updatedRoom.gameState.blackTime <= 0 ? 'timeout' : 'unknown';
             void deps.saveGameToDb(updatedRoom, reason).then(({ ratingChange }) => {
-              if (updatedRoom.white) {
-                deps.io.to(updatedRoom.white).emit('game_over', {
-                  reason,
-                  winner: updatedRoom.gameState.winner,
-                  gameState: deps.gameManager.getClientGameState(updatedRoom, updatedRoom.white),
-                  ratingChange,
-                });
-              }
-              if (updatedRoom.black) {
-                deps.io.to(updatedRoom.black).emit('game_over', {
-                  reason,
-                  winner: updatedRoom.gameState.winner,
-                  gameState: deps.gameManager.getClientGameState(updatedRoom, updatedRoom.black),
-                  ratingChange,
-                });
-              }
+              emitGameOverToParticipants(deps.io, deps.gameManager, updatedRoom, reason, ratingChange);
             });
           } else {
             deps.io.to(gameId).emit('clock_update', {
@@ -315,6 +345,30 @@ export function createSocketConnectionHandler(deps: SocketHandlerDeps) {
           }
         });
       }
+    });
+
+    socket.on('spectate_game', (payload) => {
+      if (!enforceSocketRateLimit(socket, 'join_game', deps, ['socket', 'ip'])) return;
+      if (!payload || !isValidGameId(payload.gameId)) {
+        deps.monitoring.increment('socket.invalidPayload');
+        rejectSocketEvent(deps.monitoring, socket, 'spectate_game', 'Invalid game ID.');
+        return;
+      }
+
+      const currentGameId = deps.gameManager.getBlockingPlayerGame(socket.data.playerId);
+      if (currentGameId && currentGameId !== payload.gameId) {
+        rejectSocketEvent(deps.monitoring, socket, 'spectate_game', 'Leave your current game before spectating another one.');
+        return;
+      }
+
+      const room = deps.gameManager.spectateGame(payload.gameId, socket.id);
+      if (!room) {
+        rejectSocketEvent(deps.monitoring, socket, 'spectate_game', 'Unable to spectate game. Game may not exist.', { gameId: payload.gameId });
+        return;
+      }
+
+      socket.join(payload.gameId);
+      socket.emit('game_joined', { color: null, gameState: deps.gameManager.getClientGameState(room, socket.id) });
     });
 
     socket.on('make_move', (payload) => {
@@ -338,40 +392,13 @@ export function createSocketConnectionHandler(deps: SocketHandlerDeps) {
       }
 
       const room = result.room!;
-
-      if (room.white) {
-        deps.io.to(room.white).emit('move_made', {
-          move: result.move!,
-          gameState: deps.gameManager.getClientGameState(room, room.white),
-        });
-      }
-      if (room.black) {
-        deps.io.to(room.black).emit('move_made', {
-          move: result.move!,
-          gameState: deps.gameManager.getClientGameState(room, room.black),
-        });
-      }
+      emitMoveToParticipants(deps.io, deps.gameManager, room, result.move!);
 
       if (room.gameState.gameOver) {
         const reason = room.gameState.resultReason ?? 'draw';
         deps.monitoring.increment('gamesFinished');
         void deps.saveGameToDb(room, reason).then(({ ratingChange }) => {
-          if (room.white) {
-            deps.io.to(room.white).emit('game_over', {
-              reason,
-              winner: room.gameState.winner,
-              gameState: deps.gameManager.getClientGameState(room, room.white),
-              ratingChange,
-            });
-          }
-          if (room.black) {
-            deps.io.to(room.black).emit('game_over', {
-              reason,
-              winner: room.gameState.winner,
-              gameState: deps.gameManager.getClientGameState(room, room.black),
-              ratingChange,
-            });
-          }
+          emitGameOverToParticipants(deps.io, deps.gameManager, room, reason, ratingChange);
         });
       }
     });
@@ -386,22 +413,7 @@ export function createSocketConnectionHandler(deps: SocketHandlerDeps) {
 
       deps.monitoring.increment('gamesFinished');
       void deps.saveGameToDb(room, 'resignation').then(({ ratingChange }) => {
-        if (room.white) {
-          deps.io.to(room.white).emit('game_over', {
-            reason: 'resignation',
-            winner: room.gameState.winner,
-            gameState: deps.gameManager.getClientGameState(room, room.white),
-            ratingChange,
-          });
-        }
-        if (room.black) {
-          deps.io.to(room.black).emit('game_over', {
-            reason: 'resignation',
-            winner: room.gameState.winner,
-            gameState: deps.gameManager.getClientGameState(room, room.black),
-            ratingChange,
-          });
-        }
+        emitGameOverToParticipants(deps.io, deps.gameManager, room, 'resignation', ratingChange);
       });
     });
 
@@ -427,8 +439,7 @@ export function createSocketConnectionHandler(deps: SocketHandlerDeps) {
       const room = deps.gameManager.startCounting(gameId, socket.id);
       if (!room) return;
 
-      if (room.white) deps.io.to(room.white).emit('game_state', deps.gameManager.getClientGameState(room, room.white));
-      if (room.black) deps.io.to(room.black).emit('game_state', deps.gameManager.getClientGameState(room, room.black));
+      emitGameStateToParticipants(deps.io, deps.gameManager, room);
     });
 
     socket.on('stop_counting', () => {
@@ -439,8 +450,7 @@ export function createSocketConnectionHandler(deps: SocketHandlerDeps) {
       const room = deps.gameManager.stopCounting(gameId, socket.id);
       if (!room) return;
 
-      if (room.white) deps.io.to(room.white).emit('game_state', deps.gameManager.getClientGameState(room, room.white));
-      if (room.black) deps.io.to(room.black).emit('game_state', deps.gameManager.getClientGameState(room, room.black));
+      emitGameStateToParticipants(deps.io, deps.gameManager, room);
     });
 
     socket.on('respond_draw', (payload) => {
@@ -460,22 +470,7 @@ export function createSocketConnectionHandler(deps: SocketHandlerDeps) {
       if (payload.accept) {
         deps.monitoring.increment('gamesFinished');
         void deps.saveGameToDb(room, 'draw_agreement').then(({ ratingChange }) => {
-          if (room.white) {
-            deps.io.to(room.white).emit('game_over', {
-              reason: 'draw_agreement',
-              winner: null,
-              gameState: deps.gameManager.getClientGameState(room, room.white),
-              ratingChange,
-            });
-          }
-          if (room.black) {
-            deps.io.to(room.black).emit('game_over', {
-              reason: 'draw_agreement',
-              winner: null,
-              gameState: deps.gameManager.getClientGameState(room, room.black),
-              ratingChange,
-            });
-          }
+          emitGameOverToParticipants(deps.io, deps.gameManager, room, 'draw_agreement', ratingChange);
         });
       } else {
         const offerer = room.white === socket.id ? room.black : room.white;

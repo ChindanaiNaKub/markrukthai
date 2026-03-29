@@ -287,6 +287,19 @@ app.get('/api/stats', async (_req, res) => {
   res.json(stats);
 });
 
+app.get('/api/live-games', (req, res) => {
+  const rawLimit = parseInt(String(req.query.limit ?? '12'), 10);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 40) : 12;
+  const status = req.query.status === 'live' ? 'live' : 'all';
+  const games = gameManager.getPublicLiveGames({ status, limit });
+
+  res.json({
+    games,
+    total: games.length,
+    status,
+  });
+});
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,

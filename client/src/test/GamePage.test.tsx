@@ -378,6 +378,7 @@ describe('GamePage', () => {
 
     expect(screen.getByText('game.waiting_title')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'game.copy' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'game.open_spectator' })).toHaveAttribute('href', '/spectate/waiting-room');
     expect(screen.getByText('leaderboard.col_rating 1720')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'game.copy' }));
@@ -699,6 +700,17 @@ describe('GamePage', () => {
     expect(navigateMock).toHaveBeenCalledWith('/game/replacement-room');
   });
 
+  it('redirects third-party visitors to spectator mode when the live game is already full', async () => {
+    renderGamePage('/game/full-room');
+
+    await act(async () => {
+      emitSocketEvent('error', { message: 'Game is full. Redirecting to spectator mode.' });
+    });
+
+    expect(navigateMock).toHaveBeenCalledWith('/spectate/full-room', { replace: true });
+    expect(screen.queryByText('Game is full. Redirecting to spectator mode.')).not.toBeInTheDocument();
+  });
+
   it('copies the share link in playing view, resets copied state, and lets header buttons navigate', async () => {
     vi.useFakeTimers();
 
@@ -723,6 +735,7 @@ describe('GamePage', () => {
     });
 
     expect(screen.getByRole('button', { name: 'game.share' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'game.open_spectator' })).toHaveAttribute('href', '/spectate/share-room');
 
     fireEvent.click(screen.getByRole('button', { name: 'app.name' }));
     expect(navigateMock).toHaveBeenCalledWith('/');

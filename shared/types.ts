@@ -127,10 +127,26 @@ export interface RatingChangeSummary {
   blackAfter: number;
 }
 
+export interface PublicLiveGameSummary {
+  id: string;
+  status: 'playing' | 'finished';
+  whitePlayerName: string | null;
+  blackPlayerName: string | null;
+  whiteRating: number | null;
+  blackRating: number | null;
+  timeControl: TimeControl;
+  moveCount: number;
+  spectatorCount: number;
+  rated: boolean;
+  gameMode: GameMode;
+  createdAt: number;
+  lastMoveAt: number;
+}
+
 // Socket.IO Event types
 export interface ServerToClientEvents {
   game_created: (data: { gameId: string }) => void;
-  game_joined: (data: { color: PieceColor; gameState: ClientGameState }) => void;
+  game_joined: (data: { color: PieceColor | null; gameState: ClientGameState }) => void;
   game_state: (data: ClientGameState) => void;
   move_made: (data: { move: Move; gameState: ClientGameState }) => void;
   game_over: (data: { reason: string; winner: PieceColor | null; gameState: ClientGameState; ratingChange: RatingChangeSummary | null }) => void;
@@ -151,6 +167,7 @@ export interface ServerToClientEvents {
 export interface ClientToServerEvents {
   create_game: (data: { timeControl: TimeControl; colorPreference: PrivateGameColorPreference }) => void;
   join_game: (data: { gameId: string }) => void;
+  spectate_game: (data: { gameId: string }) => void;
   leave_game: (data: { gameId?: string }) => void;
   make_move: (data: { from: Position; to: Position }) => void;
   resign: () => void;
