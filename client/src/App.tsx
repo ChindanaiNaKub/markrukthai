@@ -7,6 +7,8 @@ import { SeoHeadManager } from './lib/seo';
 
 // Lazy load route components for code splitting
 const GamePage = lazy(() => import('./components/GamePage'));
+const SpectatorPage = lazy(() => import('./components/SpectatorPage'));
+const LiveGamesPage = lazy(() => import('./components/LiveGamesPage'));
 const LocalGame = lazy(() => import('./components/LocalGame'));
 const BotGame = lazy(() => import('./components/BotGame'));
 const PuzzleListPage = lazy(() => import('./components/PuzzlePage').then(m => ({ default: m.PuzzleListPage })));
@@ -45,6 +47,8 @@ export default function App() {
         <Routes>
           <Route path={routes.home} element={<HomePage />} />
           <Route path={routes.liveGamePattern} element={<GamePage />} />
+          <Route path={routes.spectatorGamePattern} element={<SpectatorPage />} />
+          <Route path={routes.watch} element={<LiveGamesPage />} />
           <Route path={routes.local} element={<LocalGame />} />
           <Route path={routes.bot} element={<BotGame />} />
           <Route path={routes.puzzles} element={<PuzzleListPage />} />

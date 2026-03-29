@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import {
   GameRoom, TimeControl, PieceColor, PrivateGameColorPreference, GameMode,
-  Position, ClientGameState, Move,
+  Position, ClientGameState, Move, PublicLiveGameSummary,
 } from '../../shared/types';
 import { createInitialGameState, makeMove, startCounting, stopCounting } from '../../shared/engine';
 
@@ -155,13 +155,39 @@ export class GameManager {
       return { room, color: 'black', reconnected: false };
     }
 
-    // Game is full, join as spectator
+    return null;
+  }
+
+  spectateGame(gameId: string, socketId: string): GameRoom | null {
+    const room = this.games.get(gameId);
+    if (!room) return null;
+    if (this.getPlayerColor(room, socketId)) return room;
+
+    const previousGameId = this.socketGames.get(socketId);
+    if (previousGameId && previousGameId !== gameId) {
+      const previousRoom = this.games.get(previousGameId);
+      if (previousRoom && !this.getPlayerColor(previousRoom, socketId)) {
+        previousRoom.spectators = previousRoom.spectators.filter((spectatorId) => spectatorId !== socketId);
+        const shouldDeletePreviousRoom = previousRoom.status === 'waiting'
+          && !previousRoom.white
+          && !previousRoom.black
+          && previousRoom.spectators.length === 0;
+
+        if (shouldDeletePreviousRoom) {
+          this.deleteGame(previousGameId, previousRoom);
+        } else {
+          this.touchGame(previousGameId);
+        }
+      }
+    }
+
     if (!room.spectators.includes(socketId)) {
       room.spectators.push(socketId);
     }
+
     this.socketGames.set(socketId, gameId);
     this.touchGame(gameId);
-    return null;
+    return room;
   }
 
   makeMove(gameId: string, socketId: string, from: Position, to: Position): {
@@ -442,6 +468,51 @@ export class GameManager {
       playing,
       finished,
     };
+  }
+
+  getPublicLiveGames(options: { status?: 'live' | 'all'; limit?: number } = {}): PublicLiveGameSummary[] {
+    const statusFilter = options.status ?? 'all';
+    const limit = options.limit ?? 20;
+
+    const summaries = Array.from(this.games.values())
+      .filter((room) => room.gameMode === 'quick_play')
+      .filter((room): room is GameRoom & { status: 'playing' | 'finished' } => room.status === 'playing' || room.status === 'finished')
+      .filter((room) => statusFilter === 'all' || room.status === 'playing')
+      .map((room) => ({
+        id: room.id,
+        status: room.status,
+        whitePlayerName: room.whitePlayerName,
+        blackPlayerName: room.blackPlayerName,
+        whiteRating: room.whiteRating,
+        blackRating: room.blackRating,
+        timeControl: room.timeControl,
+        moveCount: room.gameState.moveCount,
+        spectatorCount: room.spectators.length,
+        rated: room.rated,
+        gameMode: room.gameMode,
+        createdAt: room.createdAt,
+        lastMoveAt: room.gameState.lastMoveTime,
+      }))
+      .sort((a, b) => {
+        const aStatusScore = a.status === 'playing' ? 1 : 0;
+        const bStatusScore = b.status === 'playing' ? 1 : 0;
+        if (aStatusScore !== bStatusScore) return bStatusScore - aStatusScore;
+
+        const aRatedScore = a.rated ? 1 : 0;
+        const bRatedScore = b.rated ? 1 : 0;
+        if (aRatedScore !== bRatedScore) return bRatedScore - aRatedScore;
+
+        if (a.spectatorCount !== b.spectatorCount) return b.spectatorCount - a.spectatorCount;
+        if (a.moveCount !== b.moveCount) return b.moveCount - a.moveCount;
+
+        const aRatingSum = (a.whiteRating ?? 0) + (a.blackRating ?? 0);
+        const bRatingSum = (b.whiteRating ?? 0) + (b.blackRating ?? 0);
+        if (aRatingSum !== bRatingSum) return bRatingSum - aRatingSum;
+
+        return b.lastMoveAt - a.lastMoveAt;
+      });
+
+    return summaries.slice(0, limit);
   }
 
   getPlayerGame(playerId: string): string | null {
