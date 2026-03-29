@@ -6,7 +6,7 @@ import { socket, connectSocket } from '../lib/socket';
 import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound, playGameStartSound } from '../lib/sounds';
 import { useTranslation } from '../lib/i18n';
 import { useAuth } from '../lib/auth';
-import { liveGameRoute, routes, savedGameAnalysisRoute } from '../lib/routes';
+import { liveGameRoute, routes, savedGameAnalysisRoute, spectatorGameRoute } from '../lib/routes';
 import { getCapturedSummary } from '../lib/capturedSummary';
 import { useGameInteraction } from '../hooks/useGameInteraction';
 import { BoardErrorBoundary } from './BoardErrorBoundary';
@@ -49,6 +49,7 @@ export default function GamePage() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const isMyTurn = gameState?.turn === playerColor && gameState?.status === 'playing';
+  const spectatorPath = gameId ? spectatorGameRoute(gameId) : routes.home;
 
   useEffect(() => {
     latestGameStateRef.current = gameState;
@@ -85,7 +86,7 @@ export default function GamePage() {
       joinedRef.current = false;
     };
 
-    const handleJoined = ({ color, gameState: gs }: { color: PieceColor; gameState: ClientGameState }) => {
+    const handleJoined = ({ color, gameState: gs }: { color: PieceColor | null; gameState: ClientGameState }) => {
       setPlayerColor(color);
       setGameState(gs);
       setError(null);
@@ -168,6 +169,10 @@ export default function GamePage() {
     };
 
     const handleError = ({ message }: { message: string }) => {
+      if (message === 'Game is full. Redirecting to spectator mode.' && gameId) {
+        navigate(spectatorPath, { replace: true });
+        return;
+      }
       setRematchState('idle');
       setError(message);
     };
@@ -207,7 +212,7 @@ export default function GamePage() {
       socket.off('game_created', handleGameCreated);
       socket.off('error', handleError);
     };
-  }, [gameId, navigate, clearSelection, cancelPremove]);
+  }, [gameId, navigate, spectatorPath, clearSelection, cancelPremove]);
 
   useEffect(() => {
     return () => {
@@ -406,6 +411,15 @@ export default function GamePage() {
               </button>
             </div>
 
+            <a
+              href={spectatorPath}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center rounded-lg border border-surface-hover bg-surface px-4 py-2 text-sm font-semibold text-text-bright transition-colors hover:bg-surface-hover"
+            >
+              {t('game.open_spectator')}
+            </a>
+
             <div className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${
               gameState.rated ? 'bg-primary/15 text-primary-light' : 'bg-surface text-text-dim border border-surface-hover'
             }`}>
@@ -557,6 +571,14 @@ export default function GamePage() {
             >
               {copied ? t('game.copied') : t('game.share')}
             </button>
+            <a
+              href={spectatorPath}
+              target="_blank"
+              rel="noreferrer"
+              className="px-2 py-1 rounded bg-surface-hover hover:bg-primary/20 text-text text-xs transition-colors"
+            >
+              {t('game.open_spectator')}
+            </a>
           </>
         }
         banners={

@@ -10,6 +10,7 @@ const {
   navigateMock,
   connectSocketMock,
   socketMock,
+  fetchMock,
   puzzleProgressSummaryState,
 } = vi.hoisted(() => ({
   navigateMock: vi.fn(),
@@ -21,6 +22,7 @@ const {
     off: vi.fn(),
     once: vi.fn(),
   },
+  fetchMock: vi.fn(),
   puzzleProgressSummaryState: {
     completedCount: 2,
     totalCount: 7,
@@ -112,6 +114,18 @@ describe('HomePage', () => {
     socketMock.on.mockReset();
     socketMock.off.mockReset();
     socketMock.once.mockReset();
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith('/api/stats')) {
+        return { json: async () => ({ totalGames: 42 }) };
+      }
+      if (url.startsWith('/api/live-games')) {
+        return { json: async () => ({ games: [], total: 0, status: 'live' }) };
+      }
+      throw new Error(`Unhandled fetch for ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
   });
 
   it('does not render the home-page rules section', () => {
@@ -261,6 +275,48 @@ describe('HomePage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /play local/i }));
     expect(navigateMock).toHaveBeenCalledWith('/local');
+  });
+
+  it('exposes public live-game discovery from the homepage', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith('/api/stats')) {
+        return { json: async () => ({ totalGames: 42 }) };
+      }
+      if (url.startsWith('/api/live-games')) {
+        return {
+          json: async () => ({
+            games: [{
+              id: 'live-1234',
+              status: 'playing',
+              whitePlayerName: 'Rated White',
+              blackPlayerName: 'Rated Black',
+              whiteRating: 1812,
+              blackRating: 1760,
+              timeControl: { initial: 300, increment: 3 },
+              moveCount: 28,
+              spectatorCount: 4,
+              rated: true,
+              gameMode: 'quick_play',
+              createdAt: Date.now(),
+              lastMoveAt: Date.now(),
+            }],
+            total: 1,
+            status: 'live',
+          }),
+        };
+      }
+      throw new Error(`Unhandled fetch for ${url}`);
+    });
+
+    render(<HomePage />, { wrapper });
+
+    expect(await screen.findByText('Live Now')).toBeInTheDocument();
+    expect(screen.getByText('Rated White (1812)')).toBeInTheDocument();
+    expect(screen.getByText('Rated Black (1760)')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /view all live games/i }));
+    expect(navigateMock).toHaveBeenCalledWith('/watch');
   });
 
   it('shows continue training and routes to the next recommended puzzle', () => {

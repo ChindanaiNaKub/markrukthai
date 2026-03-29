@@ -6,6 +6,7 @@ import { socket, connectSocket } from '../lib/socket';
 import { liveGameRoute, puzzleRoute, routes } from '../lib/routes';
 
 import { useTranslation } from '../lib/i18n';
+import { usePublicLiveGames } from '../hooks/usePublicLiveGames';
 import { usePuzzleProgressSummary } from '../lib/puzzleProgress';
 
 import PieceSVG from './PieceSVG';
@@ -19,6 +20,7 @@ import BotSVG from './BotSVG';
 import PuzzleSVG from './PuzzleSVG';
 
 import QuickPlaySVG from './QuickPlaySVG';
+import LiveGamesPanel from './LiveGamesPanel';
 
 import type { PieceType, PieceColor, PrivateGameColorPreference } from '@shared/types';
 
@@ -70,6 +72,7 @@ export default function HomePage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
   const [stats, setStats] = useState<HomeStats | null>(null);
+  const { games: liveGames, loading: liveGamesLoading } = usePublicLiveGames({ status: 'live', limit: 4 });
   const gameCreatedHandlerRef = useRef<((payload: { gameId: string }) => void) | null>(null);
   const connectHandlerRef = useRef<(() => void) | null>(null);
   const errorHandlerRef = useRef<((payload: { message: string }) => void) | null>(null);
@@ -484,6 +487,20 @@ export default function HomePage() {
 
               <button
                 type="button"
+                onClick={() => navigate(routes.watch)}
+                className="bg-surface-alt border border-surface-hover/80 rounded-xl px-4 py-3.5 text-left transition-colors hover:bg-surface-hover/60"
+              >
+                <div className="flex items-center gap-3">
+                  <QuickPlaySVG size={24} className="text-text-bright flex-shrink-0" />
+                  <div>
+                    <div className="text-text-bright text-[0.95rem] font-semibold">{t('home.watch_live')}</div>
+                    <div className="text-text-dim text-xs sm:text-sm">{t('home.watch_live_desc')}</div>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => navigate(routes.local)}
                 className="bg-surface-alt border border-surface-hover/80 rounded-xl px-4 py-3.5 text-left transition-colors hover:bg-surface-hover/60"
               >
@@ -492,6 +509,19 @@ export default function HomePage() {
               </button>
             </aside>
           </section>
+
+          <LiveGamesPanel
+            games={liveGames}
+            loading={liveGamesLoading}
+            title={t('home.live_now_title')}
+            description={t('home.live_now_desc')}
+            emptyTitle={t('home.no_live_games')}
+            emptyDesc={t('home.no_live_games_desc')}
+            compact
+            showViewAll
+            viewAllLabel={t('home.view_all_live')}
+            onViewAll={() => navigate(routes.watch)}
+          />
 
           <section className="rounded-2xl border border-surface-hover bg-surface-alt/85 p-5 sm:p-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -534,6 +564,7 @@ export default function HomePage() {
               <h4 className="text-text-bright font-semibold mb-2 text-sm">{t('nav.play')}</h4>
               <ul className="space-y-2 text-text-dim text-xs">
                 <li><a href="/quick-play" className="hover:text-primary transition-colors">{t('home.quick_play')}</a></li>
+                <li><a href="/watch" className="hover:text-primary transition-colors">{t('home.watch_live')}</a></li>
                 <li><a href="/local" className="hover:text-primary transition-colors">{t('home.play_local')}</a></li>
                 <li><a href="/bot" className="hover:text-primary transition-colors">{t('home.play_bot')}</a></li>
               </ul>

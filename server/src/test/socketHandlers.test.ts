@@ -331,6 +331,78 @@ describe('socket entry handlers', () => {
     expect(ioMock.to('black-old').emitMock).toHaveBeenCalledWith('opponent_reconnected');
   });
 
+  it('lets spectators join read-only and receive live updates without becoming players', () => {
+    const room = gameManager.createGame(timeControl);
+    gameManager.joinGame(room.id, 'white-socket');
+    gameManager.joinGame(room.id, 'black-socket');
+
+    const spectatorSocket = connectSocket('spectator-socket');
+    spectatorSocket.trigger('spectate_game', { gameId: room.id });
+
+    expect(spectatorSocket.join).toHaveBeenCalledWith(room.id);
+    expect(spectatorSocket.emit).toHaveBeenCalledWith(
+      'game_joined',
+      expect.objectContaining({ color: null }),
+    );
+    expect(gameManager.getGame(room.id)?.spectators).toContain('spectator-socket');
+
+    const whiteSocket = connectSocket('white-socket');
+    whiteSocket.trigger('make_move', {
+      from: { row: 2, col: 0 },
+      to: { row: 3, col: 0 },
+    });
+
+    expect(ioMock.to('spectator-socket').emitMock).toHaveBeenCalledWith(
+      'move_made',
+      expect.objectContaining({
+        move: expect.objectContaining({
+          from: { row: 2, col: 0 },
+          to: { row: 3, col: 0 },
+        }),
+        gameState: expect.objectContaining({ playerColor: null }),
+      }),
+    );
+
+    spectatorSocket.emit.mockClear();
+    spectatorSocket.trigger('make_move', {
+      from: { row: 2, col: 1 },
+      to: { row: 3, col: 1 },
+    });
+
+    expect(spectatorSocket.emit).toHaveBeenCalledWith('error', { message: 'You are not in a game' });
+  });
+
+  it('tells a third player to use spectator mode when a live game is already full', () => {
+    const room = gameManager.createGame(timeControl);
+    gameManager.joinGame(room.id, 'white-socket');
+    gameManager.joinGame(room.id, 'black-socket');
+
+    const thirdSocket = connectSocket('third-socket');
+    thirdSocket.trigger('join_game', { gameId: room.id });
+
+    expect(thirdSocket.emit).toHaveBeenCalledWith('error', {
+      message: 'Game is full. Redirecting to spectator mode.',
+    });
+  });
+
+  it('prevents an active player from spectating a different live game on the same session', () => {
+    const roomA = gameManager.createGame(timeControl);
+    gameManager.joinGame(roomA.id, 'white-socket', { playerId: 'player-1' });
+    gameManager.joinGame(roomA.id, 'black-socket', { playerId: 'player-2' });
+
+    const roomB = gameManager.createGame(timeControl);
+    gameManager.joinGame(roomB.id, 'white-b', { playerId: 'player-3' });
+    gameManager.joinGame(roomB.id, 'black-b', { playerId: 'player-4' });
+
+    const activePlayerSocket = connectSocket('white-socket', null, 'player-1');
+    activePlayerSocket.trigger('spectate_game', { gameId: roomB.id });
+
+    expect(activePlayerSocket.emit).toHaveBeenCalledWith('error', {
+      message: 'Leave your current game before spectating another one.',
+    });
+    expect(gameManager.getGame(roomB.id)?.spectators).toEqual([]);
+  });
+
   it('emits updated counting state to both players when counting starts', () => {
     const room = gameManager.createGame(timeControl);
     gameManager.joinGame(room.id, 'white-socket');

@@ -6,7 +6,7 @@ import PieceSVG from './PieceSVG';
 import AppearanceSettingsButton from './AppearanceSettingsButton';
 
 interface HeaderProps {
-  active?: 'play' | 'puzzles' | 'games' | 'about';
+  active?: 'play' | 'watch' | 'puzzles' | 'games' | 'about';
   subtitle?: string;
   right?: React.ReactNode;
 }
@@ -22,7 +22,7 @@ export default function Header({ active, subtitle, right }: HeaderProps) {
     navigate(path);
   };
 
-  const navItem = (key: 'play' | 'puzzles' | 'games' | 'about', path: string, label: string) => (
+  const navItem = (key: 'play' | 'watch' | 'puzzles' | 'games' | 'about', path: string, label: string) => (
     <button
       key={key}
       onClick={() => handleNavigate(path)}
@@ -41,7 +41,7 @@ export default function Header({ active, subtitle, right }: HeaderProps) {
     </button>
   );
 
-  const mobileNavItem = (key: 'play' | 'puzzles' | 'games' | 'about', path: string, label: string) => (
+  const mobileNavItem = (key: 'play' | 'watch' | 'puzzles' | 'games' | 'about', path: string, label: string) => (
     <button
       key={key}
       onClick={() => handleNavigate(path)}
@@ -81,6 +81,7 @@ export default function Header({ active, subtitle, right }: HeaderProps) {
           {active !== undefined && (
             <nav className="hidden sm:flex items-center gap-5">
               {navItem('play', '/', t('nav.play'))}
+              {navItem('watch', '/watch', t('nav.watch'))}
               {navItem('puzzles', '/puzzles', t('nav.puzzles'))}
               {navItem('games', '/games', t('nav.games'))}
               {navItem('about', '/about', t('nav.about'))}
@@ -152,6 +153,7 @@ export default function Header({ active, subtitle, right }: HeaderProps) {
             {active !== undefined && (
               <nav className="grid grid-cols-2 gap-2">
                 {mobileNavItem('play', '/', t('nav.play'))}
+                {mobileNavItem('watch', '/watch', t('nav.watch'))}
                 {mobileNavItem('puzzles', '/puzzles', t('nav.puzzles'))}
                 {mobileNavItem('games', '/games', t('nav.games'))}
                 {mobileNavItem('about', '/about', t('nav.about'))}
