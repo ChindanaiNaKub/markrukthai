@@ -43,6 +43,13 @@ function getPuzzleSourceLabel(
   return source;
 }
 
+function formatActivityDate(timestamp: number, lang: string): string {
+  return new Intl.DateTimeFormat(lang === 'th' ? 'th-TH' : 'en-US', {
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(timestamp * 1000));
+}
+
 function PuzzleListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -401,9 +408,9 @@ function PuzzleListPage() {
 }
 
 function PuzzlePlayer() {
-  const { t } = useTranslation();
+  const { t, lang } = useTranslation();
   const navigate = useNavigate();
-  const { recordPuzzleVisited, markPuzzleCompleted } = usePuzzleProgress();
+  const { progressRecords, completedPuzzleSet, recordPuzzleVisited, markPuzzleCompleted } = usePuzzleProgress();
   const { id } = useParams<{ id: string }>();
   const puzzleId = parseInt(id || '1');
   const puzzle = PUZZLES.find(p => p.id === puzzleId);
@@ -671,6 +678,25 @@ function PuzzlePlayer() {
   const currentTurnLabel = currentTurn === 'white' ? t('common.white') : t('common.black');
   const isSolverTurn = status === 'playing' && gameState?.turn === puzzle.toMove;
   const currentStep = gameState ? Math.min(gameState.moveHistory.length + 1, puzzle.solution.length) : 1;
+  const progressRecord = progressRecords.find(record => record.puzzleId === puzzleId) ?? null;
+  const completedTimestamp = progressRecord?.completedAt ?? (status === 'success' ? Math.floor(Date.now() / 1000) : null);
+
+  let activityStatusLabel = t('puzzle.activity_status_new');
+  if (completedTimestamp !== null) {
+    activityStatusLabel = t('puzzle.activity_status_solved');
+  } else if (progressRecord) {
+    activityStatusLabel = t('puzzle.activity_status_in_progress');
+  }
+
+  const relatedThemePuzzles = PUZZLES
+    .filter(candidate => candidate.id !== puzzle.id && candidate.theme === puzzle.theme)
+    .sort((a, b) => {
+      const aCompleted = completedPuzzleSet.has(a.id);
+      const bCompleted = completedPuzzleSet.has(b.id);
+      if (aCompleted !== bCompleted) return aCompleted ? 1 : -1;
+      return a.id - b.id;
+    })
+    .slice(0, 3);
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
@@ -765,6 +791,51 @@ function PuzzlePlayer() {
                 <p className="text-text-dim text-sm">{t('puzzle.wrong_desc')}</p>
               </div>
             )}
+
+            <div className="rounded-xl border border-surface-hover bg-surface-alt p-4">
+              <p className="text-xs uppercase tracking-[0.16em] text-primary/80 mb-2">{t('puzzle.activity_title')}</p>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <span className="rounded-full border border-surface-hover bg-surface px-2.5 py-1 text-xs text-text-dim">
+                  {t('puzzle.activity_status_label')}: {activityStatusLabel}
+                </span>
+                {progressRecord?.lastPlayedAt && (
+                  <span className="rounded-full border border-surface-hover bg-surface px-2.5 py-1 text-xs text-text-dim">
+                    {t('puzzle.activity_last_played', { date: formatActivityDate(progressRecord.lastPlayedAt, lang) })}
+                  </span>
+                )}
+                {completedTimestamp !== null && (
+                  <span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs text-primary-light">
+                    {t('puzzle.activity_completed_on', { date: formatActivityDate(completedTimestamp, lang) })}
+                  </span>
+                )}
+              </div>
+
+              <p className="text-xs uppercase tracking-[0.16em] text-primary/80 mb-2">{t('puzzle.related_theme_title')}</p>
+              {relatedThemePuzzles.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-text-dim">{t('puzzle.related_theme_desc', { theme: t(`theme.${puzzle.theme}`) })}</p>
+                  {relatedThemePuzzles.map((relatedPuzzle) => (
+                    <button
+                      key={relatedPuzzle.id}
+                      onClick={() => navigate(`/puzzle/${relatedPuzzle.id}`)}
+                      className="w-full rounded-lg border border-surface-hover bg-surface px-3 py-2 text-left transition-colors hover:bg-surface-hover"
+                    >
+                      <div className="text-sm font-medium text-text-bright">
+                        #{relatedPuzzle.id} · {getPublicPuzzleTitle(relatedPuzzle.title)}
+                      </div>
+                      <div className="mt-1 flex items-center gap-2 text-xs text-text-dim">
+                        <span>{t(`puzzle.${relatedPuzzle.difficulty}`)}</span>
+                        <span>
+                          {completedPuzzleSet.has(relatedPuzzle.id) ? t('puzzle.solved_badge') : t('puzzle.new_badge')}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-text-dim">{t('puzzle.related_theme_empty', { theme: t(`theme.${puzzle.theme}`) })}</p>
+              )}
+            </div>
 
             <div className="flex gap-2 flex-wrap sm:flex-nowrap">
               {status === 'playing' && (

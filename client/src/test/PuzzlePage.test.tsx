@@ -73,6 +73,20 @@ const { boardPropsMock, navigateMock, puzzleFixture, puzzleListFixtures, markPuz
           { from: { row: 6, col: 3 }, to: { row: 7, col: 3 } },
         ],
       },
+      {
+        id: 80,
+        title: 'Quiet Mate Follow-up',
+        description: 'Another mate in one from the same theme.',
+        explanation: 'Keep drilling the same mating pattern.',
+        source: 'Starter pack: test fixture',
+        theme: 'MateIn1' as const,
+        difficulty: 'intermediate' as const,
+        toMove: 'white' as const,
+        board,
+        solution: [
+          { from: { row: 6, col: 3 }, to: { row: 7, col: 3 } },
+        ],
+      },
     ],
     markPuzzleCompletedMock: vi.fn(async () => {}),
     recordPuzzleVisitedMock: vi.fn(async () => {}),
@@ -154,6 +168,26 @@ vi.mock('../lib/i18n', () => ({
           return 'Review batch';
         case 'puzzle.source_real_game_ply':
           return `Real game · ply ${params?.ply}`;
+        case 'puzzle.activity_title':
+          return 'Session activity';
+        case 'puzzle.activity_status_label':
+          return 'Status';
+        case 'puzzle.activity_status_new':
+          return 'New';
+        case 'puzzle.activity_status_in_progress':
+          return 'In progress';
+        case 'puzzle.activity_status_solved':
+          return 'Solved';
+        case 'puzzle.activity_last_played':
+          return `Last played ${params?.date}`;
+        case 'puzzle.activity_completed_on':
+          return `Solved ${params?.date}`;
+        case 'puzzle.related_theme_title':
+          return 'More in this theme';
+        case 'puzzle.related_theme_desc':
+          return `Keep drilling ${params?.theme} with these follow-ups.`;
+        case 'puzzle.related_theme_empty':
+          return `No other ${params?.theme} puzzles yet.`;
         case 'puzzle.all':
           return 'All';
         case 'puzzle.beginner':
@@ -299,9 +333,14 @@ describe('PuzzlePage turn state', () => {
   });
 
   it('shows the opponent turn after a checking solver move before the auto-reply runs', async () => {
+    progressState.progressRecords = [{ puzzleId: 77, lastPlayedAt: 1711600000, completedAt: null }];
     renderPuzzlePlayer();
 
     expect(recordPuzzleVisitedMock).toHaveBeenCalledWith(77);
+    expect(screen.getByText('Session activity')).toBeInTheDocument();
+    expect(screen.getByText('Status: In progress')).toBeInTheDocument();
+    expect(screen.getByText('More in this theme')).toBeInTheDocument();
+    expect(screen.getByText('#80 · Quiet Mate Follow-up')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'from' }));
     fireEvent.click(screen.getByRole('button', { name: 'to' }));
