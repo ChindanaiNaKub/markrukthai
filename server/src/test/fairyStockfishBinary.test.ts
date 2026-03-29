@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { getEngineSearchTimeoutMs, normalizeEngineFen } from '../fairyStockfishBinary';
+import { getReviewMovetime } from '../engineGateway';
 
 describe('normalizeEngineFen', () => {
   it('expands compact board-and-turn positions into full engine fen', () => {
@@ -24,5 +25,11 @@ describe('normalizeEngineFen', () => {
       position: '8/8/8/8/8/8/8/8 w',
       search: { movetimeMs: 1200 },
     }, 'analysis')).toBe(6200);
+  });
+
+  it('scales review movetime down for long games while preserving short-game quality', () => {
+    expect(getReviewMovetime(10, 250)).toBe(250);
+    expect(getReviewMovetime(77, 250)).toBe(102);
+    expect(getReviewMovetime(200, 250)).toBe(80);
   });
 });
