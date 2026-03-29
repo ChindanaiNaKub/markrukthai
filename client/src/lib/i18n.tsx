@@ -205,6 +205,16 @@ const EN: Record<string, string> = {
   'puzzle.source_real_game_ply': 'Real game · ply {ply}',
   'puzzle.source_starter_pack': 'Starter pack',
   'puzzle.source_review_batch': 'Review batch',
+  'puzzle.activity_title': 'Session activity',
+  'puzzle.activity_status_label': 'Status',
+  'puzzle.activity_status_new': 'New',
+  'puzzle.activity_status_in_progress': 'In progress',
+  'puzzle.activity_status_solved': 'Solved',
+  'puzzle.activity_last_played': 'Last played {date}',
+  'puzzle.activity_completed_on': 'Solved {date}',
+  'puzzle.related_theme_title': 'More in this theme',
+  'puzzle.related_theme_desc': 'Keep drilling {theme} with these follow-ups.',
+  'puzzle.related_theme_empty': 'No other {theme} puzzles yet.',
 
   // Puzzle themes
   'theme.BasicCheckmate': 'Basic Checkmate',
@@ -767,6 +777,16 @@ const TH: Record<string, string> = {
   'puzzle.source_real_game_ply': 'เกมจริง · ply {ply}',
   'puzzle.source_starter_pack': 'ชุดเริ่มต้น',
   'puzzle.source_review_batch': 'ชุดรอตรวจ',
+  'puzzle.activity_title': 'ความคืบหน้ารอบนี้',
+  'puzzle.activity_status_label': 'สถานะ',
+  'puzzle.activity_status_new': 'ใหม่',
+  'puzzle.activity_status_in_progress': 'กำลังฝึก',
+  'puzzle.activity_status_solved': 'แก้แล้ว',
+  'puzzle.activity_last_played': 'เล่นล่าสุด {date}',
+  'puzzle.activity_completed_on': 'แก้สำเร็จ {date}',
+  'puzzle.related_theme_title': 'ธีมเดียวกันต่อ',
+  'puzzle.related_theme_desc': 'ต่อยอดธีม {theme} ด้วยโจทย์ถัดไปเหล่านี้',
+  'puzzle.related_theme_empty': 'ยังไม่มีโจทย์ {theme} เพิ่ม',
 
   // Puzzle themes
   'theme.BasicCheckmate': 'รูปจนพื้นฐาน',
