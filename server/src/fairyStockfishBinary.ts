@@ -1,12 +1,33 @@
+import fs from 'fs';
 import path from 'path';
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { logInfo, logWarn } from './logger';
 import type { EngineServiceAnalyzeRequest, EngineServiceAnalyzeResponse } from '../../shared/engineAdapter';
 
 const BINARY_PATH_RAW = process.env.FAIRY_STOCKFISH_BINARY_PATH?.trim() || '';
-const BINARY_PATH = BINARY_PATH_RAW
-  ? (path.isAbsolute(BINARY_PATH_RAW) ? BINARY_PATH_RAW : path.resolve(process.cwd(), BINARY_PATH_RAW))
-  : '';
+const PROJECT_ROOT_CANDIDATES = [
+  process.cwd(),
+  path.resolve(process.cwd(), '..'),
+  path.resolve(__dirname, '../../'),
+  path.resolve(__dirname, '../../../'),
+  path.resolve(__dirname, '../../../../'),
+];
+
+function resolveBinaryPath(rawPath: string): string {
+  if (!rawPath) return '';
+  if (path.isAbsolute(rawPath)) return rawPath;
+
+  for (const root of PROJECT_ROOT_CANDIDATES) {
+    const candidate = path.resolve(root, rawPath);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return path.resolve(process.cwd(), rawPath);
+}
+
+const BINARY_PATH = resolveBinaryPath(BINARY_PATH_RAW);
 const ENGINE_HASH_MB = process.env.FAIRY_STOCKFISH_HASH_MB?.trim() || '';
 const ENGINE_THREADS = process.env.FAIRY_STOCKFISH_THREADS?.trim() || '';
 
