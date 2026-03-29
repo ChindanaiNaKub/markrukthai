@@ -1,6 +1,17 @@
 import type { Move } from '../../shared/types';
 import { createInitialGameState, makeMove } from '../../shared/engine';
-import { analyzeGame, classifyMove, computeAccuracy, createEmptySummary, evaluatePosition, findBestMove, type AnalyzedMove, type GameAnalysis } from '../../shared/analysis';
+import {
+  analyzeGame,
+  classifyMove,
+  computeAccuracy,
+  createEmptySummary,
+  evaluatePosition,
+  findBestMove,
+  getMoveWinPercents,
+  moveAccuracyFromWinPercent,
+  type AnalyzedMove,
+  type GameAnalysis,
+} from '../../shared/analysis';
 import { getBotMove, type BotDifficulty } from '../../shared/botEngine';
 import {
   moveToUci,
@@ -154,8 +165,6 @@ export async function analyzeGameWithEngine(moves: Move[], depth: number = 2): P
   const evaluations: number[] = [];
   const whiteSummary = createEmptySummary();
   const blackSummary = createEmptySummary();
-  const whiteClassifications: ReturnType<typeof classifyMove>[] = [];
-  const blackClassifications: ReturnType<typeof classifyMove>[] = [];
 
   let state = createInitialGameState(0, 0);
   evaluations.push(evaluatePosition(state.board, 'white'));
@@ -190,7 +199,9 @@ export async function analyzeGameWithEngine(moves: Move[], depth: number = 2): P
       && before.bestMove.to.row === move.to.row
       && before.bestMove.to.col === move.to.col;
 
-    const classification = classifyMove(evalDelta, isExactBestMove);
+    const { before: winPercentBefore, after: winPercentAfter } = getMoveWinPercents(before.evaluation, after.evaluation, color);
+    const moveAccuracy = isExactBestMove ? 100 : moveAccuracyFromWinPercent(winPercentBefore, winPercentAfter);
+    const classification = classifyMove(moveAccuracy, isExactBestMove);
 
     evaluatedMoves.push({
       move,
@@ -198,6 +209,9 @@ export async function analyzeGameWithEngine(moves: Move[], depth: number = 2): P
       evalBefore: before.evaluation,
       evalAfter: after.evaluation,
       evalDelta,
+      winPercentBefore,
+      winPercentAfter,
+      moveAccuracy,
       bestMove: before.bestMove,
       bestEval: before.evaluation,
       classification,
@@ -208,10 +222,8 @@ export async function analyzeGameWithEngine(moves: Move[], depth: number = 2): P
 
     if (color === 'white') {
       whiteSummary[classification] += 1;
-      whiteClassifications.push(classification);
     } else {
       blackSummary[classification] += 1;
-      blackClassifications.push(classification);
     }
 
     state = nextState;
@@ -220,8 +232,8 @@ export async function analyzeGameWithEngine(moves: Move[], depth: number = 2): P
   return {
     moves: evaluatedMoves,
     evaluations,
-    whiteAccuracy: computeAccuracy(whiteClassifications),
-    blackAccuracy: computeAccuracy(blackClassifications),
+    whiteAccuracy: computeAccuracy(evaluatedMoves, 'white'),
+    blackAccuracy: computeAccuracy(evaluatedMoves, 'black'),
     summary: {
       white: whiteSummary,
       black: blackSummary,

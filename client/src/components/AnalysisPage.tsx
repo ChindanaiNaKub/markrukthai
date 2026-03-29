@@ -1077,6 +1077,7 @@ function ReviewCard({ analyzed, t, onNext, onPrev, hasNext, hasPrev }: {
   const icon = getClassificationIcon(cls);
   const moveStr = `${posToAlgebraic(analyzed.move.from)}${analyzed.move.captured ? 'x' : '-'}${posToAlgebraic(analyzed.move.to)}`;
   const evalStr = formatEval(analyzed.evalAfter);
+  const accuracyStr = `${Math.round(analyzed.moveAccuracy)}%`;
 
   const getDescription = (): string => {
     if (cls === 'best' || cls === 'excellent') return t('analysis.desc_best');
@@ -1111,11 +1112,17 @@ function ReviewCard({ analyzed, t, onNext, onPrev, hasNext, hasPrev }: {
               >
                 {t(`analysis.${cls}`)}
               </span>
+              <span className="inline-flex items-center rounded-full border border-white/8 bg-surface-hover px-2 py-0.5 text-[10px] font-bold text-text-bright">
+                {accuracyStr}
+              </span>
               <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold bg-surface-hover text-text-bright border border-white/8">
                 {evalStr}
               </span>
             </div>
             <p className="text-xs text-text leading-relaxed">{getDescription()}</p>
+            <p className="mt-1 text-[11px] text-text-dim">
+              {t('analysis.move_accuracy')}: <span className="font-semibold text-text-bright">{accuracyStr}</span>
+            </p>
             {analyzed.bestMove && (cls === 'inaccuracy' || cls === 'mistake' || cls === 'blunder') && (
               <div className="mt-1.5 text-xs px-2 py-1 rounded border inline-block font-medium" style={{ backgroundColor: 'rgba(86, 179, 48, 0.16)', borderColor: 'rgba(134, 204, 99, 0.35)', color: '#d8f1be' }}>
                 ⭐ {t('analysis.best_was')}: <span className="font-mono font-bold">{bestMoveStr}</span> ({formatEval(analyzed.bestEval)})
@@ -1209,7 +1216,7 @@ function getClassificationTheme(classification: MoveClassification): {
   }
 }
 
-const ANALYSIS_CACHE_VERSION = 2;
+const ANALYSIS_CACHE_VERSION = 3;
 
 function getAnalysisCacheKey(gameData: GameData, depth: number): string {
   return `analysis-cache:${ANALYSIS_CACHE_VERSION}:${gameData.id}:${depth}:${gameData.moves.length}`;
