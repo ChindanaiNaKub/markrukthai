@@ -81,6 +81,47 @@ function createStateFromSnapshot(snapshot: AnalysisPositionSnapshot) {
   };
 }
 
+function buildLocalBotMoveResult(
+  snapshot: AnalysisPositionSnapshot,
+  level: number,
+): BotMoveResult {
+  const normalizedLevel = clampBotLevel(level);
+  const state = createStateFromSnapshot(snapshot);
+  const move = getBotMove(state, getFallbackDifficulty(normalizedLevel));
+
+  return {
+    move,
+    evaluation: evaluatePosition(snapshot.board, 'white'),
+    bestMove: move,
+    principalVariation: move ? [moveToUci(move)] : [],
+    stats: {
+      source: 'local',
+      depth: getFallbackDepth({ movetimeMs: getBotMovetime(normalizedLevel) }),
+    },
+  };
+}
+
+export function resolveBotMoveCandidate(
+  snapshot: AnalysisPositionSnapshot,
+  level: number,
+  candidate: { from: { row: number; col: number }; to: { row: number; col: number } } | null,
+): { move: { from: { row: number; col: number }; to: { row: number; col: number } } | null; source: 'engine' | 'local' } {
+  if (candidate) {
+    const state = createStateFromSnapshot(snapshot);
+    if (makeMove(state, candidate.from, candidate.to)) {
+      return {
+        move: candidate,
+        source: 'engine',
+      };
+    }
+  }
+
+  return {
+    move: buildLocalBotMoveResult(snapshot, level).move,
+    source: 'local',
+  };
+}
+
 async function callService(
   pathname: string,
   request: EngineServiceAnalyzeRequest,
@@ -285,35 +326,34 @@ export async function getBotMoveWithEngine(
   const result = remote ?? binary;
 
   if (result) {
-    const move = result.bestMoveUci ? uciToMove(result.bestMoveUci) : null;
-    return {
-      move,
-      evaluation: result.evalCp,
-      bestMove: move,
-      principalVariation: result.pvUci ?? [],
-      stats: {
-        source: remote ? 'service' : 'binary',
-        depth: result.depth,
-        selDepth: result.selDepth ?? undefined,
-        nodes: result.nodes ?? undefined,
-        nps: result.nps ?? undefined,
-      },
-    };
+    const parsedMove = result.bestMoveUci ? uciToMove(result.bestMoveUci) : null;
+    const resolved = resolveBotMoveCandidate(snapshot, normalizedLevel, parsedMove);
+
+    if (resolved.source === 'engine') {
+      return {
+        move: resolved.move,
+        evaluation: result.evalCp,
+        bestMove: resolved.move,
+        principalVariation: result.pvUci ?? [],
+        stats: {
+          source: remote ? 'service' : 'binary',
+          depth: result.depth,
+          selDepth: result.selDepth ?? undefined,
+          nodes: result.nodes ?? undefined,
+          nps: result.nps ?? undefined,
+        },
+      };
+    }
+
+    logWarn('engine_bot_move_unusable', {
+      level: normalizedLevel,
+      engineSource: remote ? 'service' : 'binary',
+      bestMoveUci: result.bestMoveUci,
+      reason: parsedMove ? 'illegal_move' : 'missing_or_unparseable_move',
+    });
   }
 
-  const state = createStateFromSnapshot(snapshot);
-  const move = getBotMove(state, getFallbackDifficulty(normalizedLevel));
-
-  return {
-    move,
-    evaluation: evaluatePosition(snapshot.board, 'white'),
-    bestMove: move,
-    principalVariation: move ? [moveToUci(move)] : [],
-    stats: {
-      source: 'local',
-      depth: getFallbackDepth({ movetimeMs: getBotMovetime(normalizedLevel) }),
-    },
-  };
+  return buildLocalBotMoveResult(snapshot, normalizedLevel);
 }
 
 function remoteEngineLabel(): string {
