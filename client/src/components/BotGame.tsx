@@ -154,22 +154,29 @@ export default function BotGame() {
         return;
       }
 
-      if (botMove) {
-        const newState = makeMove(currentState, botMove.from, botMove.to);
-        if (newState) {
-          setGameState(newState);
-          setArrows([]);
-          const lastMove = newState.moveHistory[newState.moveHistory.length - 1];
-          if (newState.isCheck) playCheckSound();
-          else if (lastMove.captured) playCaptureSound();
-          else playMoveSound();
+      let newState = botMove ? makeMove(currentState, botMove.from, botMove.to) : null;
 
-          if (newState.gameOver) {
-            const reason = newState.resultReason ?? 'draw';
-            setGameOverInfo({ reason, winner: newState.winner });
-            setPremove(null);
-            playGameOverSound();
-          }
+      if (!newState) {
+        const fallbackMove = getBotMove(currentState, getFallbackDifficulty(level));
+        if (fallbackMove) {
+          botMove = fallbackMove;
+          newState = makeMove(currentState, fallbackMove.from, fallbackMove.to);
+        }
+      }
+
+      if (newState) {
+        setGameState(newState);
+        setArrows([]);
+        const lastMove = newState.moveHistory[newState.moveHistory.length - 1];
+        if (newState.isCheck) playCheckSound();
+        else if (lastMove.captured) playCaptureSound();
+        else playMoveSound();
+
+        if (newState.gameOver) {
+          const reason = newState.resultReason ?? 'draw';
+          setGameOverInfo({ reason, winner: newState.winner });
+          setPremove(null);
+          playGameOverSound();
         }
       }
 
