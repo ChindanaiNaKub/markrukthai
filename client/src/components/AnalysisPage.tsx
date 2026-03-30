@@ -475,6 +475,7 @@ export default function AnalysisPage() {
 
   const analysisElapsedSeconds = Math.max(1, Math.floor(analysisElapsedMs / 1000));
   const showSlowAnalysisHint = analyzing && analysisElapsedSeconds >= 15;
+  const reviewIsProvisional = analysis?.engine?.confidence === 'provisional';
 
   const handleMoveClick = useCallback((index: number) => {
     setViewMoveIndex(index);
@@ -852,6 +853,22 @@ export default function AnalysisPage() {
             {analysis && (
               <div className="rounded-xl border border-white/10 bg-surface p-3 shadow-[0_10px_30px_rgba(0,0,0,0.16)]">
                 <h3 className="text-sm font-semibold text-text-bright mb-3">{t('analysis.accuracy')}</h3>
+                {analysis.engine && (
+                  <div className={`mb-3 rounded-lg border px-3 py-2 text-xs leading-relaxed ${
+                    reviewIsProvisional
+                      ? 'border-amber-500/30 bg-amber-500/10 text-amber-100'
+                      : 'border-white/10 bg-surface-alt text-text'
+                  }`}>
+                    <div className="font-medium text-text-bright">
+                      {reviewIsProvisional ? t('analysis.provisional_title') : t('analysis.engine_title')}
+                    </div>
+                    <div className="mt-1">
+                      {reviewIsProvisional
+                        ? t('analysis.provisional_note', { engine: analysis.engine.label })
+                        : t('analysis.engine_note', { engine: analysis.engine.label })}
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <AccuracyCard color="white" accuracy={analysis.whiteAccuracy} summary={analysis.summary.white} t={t} />
                   <AccuracyCard color="black" accuracy={analysis.blackAccuracy} summary={analysis.summary.black} t={t} />
@@ -1274,7 +1291,7 @@ function getClassificationTheme(classification: MoveClassification): {
   }
 }
 
-const ANALYSIS_CACHE_VERSION = 6;
+const ANALYSIS_CACHE_VERSION = 7;
 
 function getAnalysisCacheKey(gameData: GameData, movetimeMs: number): string {
   return `analysis-cache:${ANALYSIS_CACHE_VERSION}:${gameData.id}:${movetimeMs}:${gameData.moves.length}`;
