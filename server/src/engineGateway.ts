@@ -7,6 +7,7 @@ import {
   createEmptySummary,
   evaluatePosition,
   findBestMove,
+  getMoveQualityWinPercents,
   getMoveWinPercents,
   moveAccuracyFromWinPercent,
   type AnalyzedMove,
@@ -32,12 +33,12 @@ const BOT_LEVEL_MOVETIMES_MS = [50, 60, 70, 80, 95, 110, 130, 150, 170, 190] as 
 const BOT_LEVEL_REQUEST_TIMEOUT_MS = [900, 950, 1000, 1050, 1150, 1250, 1350, 1450, 1550, 1650] as const;
 const REVIEW_MOVETIME_MS = 250;
 const REVIEW_MIN_MOVETIME_MS = 60;
-const REVIEW_TOTAL_TARGET_MS = 6000;
-const REVIEW_TOTAL_BUDGET_MIN_MS = 6000;
-const REVIEW_TOTAL_BUDGET_MAX_MS = 12000;
-const REVIEW_ANALYSIS_MIN_TIMEOUT_MS = 900;
-const REVIEW_ANALYSIS_TIMEOUT_BUFFER_MS = 450;
-const REVIEW_LOCAL_FALLBACK_DEADLINE_BUFFER_MS = 1200;
+const REVIEW_TOTAL_TARGET_MS = 12000;
+const REVIEW_TOTAL_BUDGET_MIN_MS = 18000;
+const REVIEW_TOTAL_BUDGET_MAX_MS = 40000;
+const REVIEW_ANALYSIS_MIN_TIMEOUT_MS = 1400;
+const REVIEW_ANALYSIS_TIMEOUT_BUFFER_MS = 900;
+const REVIEW_LOCAL_FALLBACK_DEADLINE_BUFFER_MS = 1800;
 
 function getServiceUrl(pathname: string): string | null {
   if (!SERVICE_URL) return null;
@@ -68,7 +69,7 @@ export function getReviewMovetime(moveCount: number, requestedMovetimeMs: number
 }
 
 export function getReviewTotalBudgetMs(moveCount: number): number {
-  const adaptive = 3000 + Math.max(0, moveCount) * 110;
+  const adaptive = 6000 + Math.max(0, moveCount) * 180;
   return Math.max(REVIEW_TOTAL_BUDGET_MIN_MS, Math.min(REVIEW_TOTAL_BUDGET_MAX_MS, adaptive));
 }
 
@@ -399,7 +400,8 @@ export async function analyzeGameWithEngine(
       && before.bestMove.to.col === move.to.col;
 
     const { before: winPercentBefore, after: winPercentAfter } = getMoveWinPercents(before.evaluation, after.evaluation, color);
-    const moveAccuracy = isExactBestMove ? 100 : moveAccuracyFromWinPercent(winPercentBefore, winPercentAfter);
+    const { best: bestWinPercent, played: playedWinPercent } = getMoveQualityWinPercents(bestEval, after.evaluation, color);
+    const moveAccuracy = isExactBestMove ? 100 : moveAccuracyFromWinPercent(bestWinPercent, playedWinPercent);
     const classification = classifyMove(moveAccuracy, isExactBestMove);
 
     evaluatedMoves.push({
@@ -441,6 +443,8 @@ export async function analyzeGameWithEngine(
     engine: {
       label: usedLocalFallback ? `${remoteEngineLabel()} + local fallback` : remoteEngineLabel(),
       source: SERVICE_URL ? 'service' : 'binary',
+      confidence: usedLocalFallback ? 'provisional' : 'authoritative',
+      reason: usedLocalFallback ? 'local_fallback_used' : undefined,
     },
   };
 }
