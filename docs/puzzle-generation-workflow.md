@@ -4,6 +4,12 @@
 
 Generate better puzzle candidates from real games or exported move lists, then keep them quarantined until they survive review.
 
+The current pipeline now prefers:
+
+- real finished games from the database
+- a bundled seed corpus when the database is empty
+- imported JSON or PGN-like coordinate game records for local curation
+
 ## Why This Workflow
 
 - real games produce more believable positions than synthetic hand-placement alone
@@ -24,7 +30,9 @@ Useful flags:
 npm run generate:puzzle-candidates --workspace=server -- --limit 100 --filter rated --max-per-game 2 --starting-id 4000 --min-source-moves 16 --reject-result-reasons agreement,max_plies,stopped
 ```
 
-If the local database has no finished games yet, mine from a JSON file instead:
+If the local database has no finished games yet, the script falls back to the bundled seed corpus automatically.
+
+To mine from your own file instead, pass a JSON or PGN-like input:
 
 ```bash
 npm run generate:puzzle-candidates --workspace=server -- --input ./tmp/exported-games.json --starting-id 4000
@@ -46,6 +54,25 @@ Expected JSON shape:
   }
 ]
 ```
+
+You can also import a simple PGN-like coordinate format:
+
+```text
+[Game "seed-miniature"]
+[Source "Seed game corpus: import-smoke"]
+[Result "1-0"]
+[ResultReason "checkmate"]
+[MoveCount "24"]
+[StartingPly "9"]
+
+1. a2-a3 h7-h6 2. a3-a4 h6-h5
+```
+
+Notes:
+
+- moves use coordinate notation like `a2-a3` or `a2xb3`
+- the PGN-like importer assumes the standard initial Makruk setup
+- JSON input is still the better choice when you need a custom starting board for a midgame excerpt
 
 ## Turso Export
 
@@ -84,10 +111,17 @@ This is the recommended path for real-game mining because:
 
 1. Load recent finished games from the database, or read a JSON move export.
 2. Filter out low-value source games such as very short games or capped self-play runs.
-3. Scan 3-ply windows across each remaining move list.
-4. Try to convert each window into a checkmate, promotion, or tactic candidate.
+3. Scan 3- and 5-ply windows across each remaining move list.
+4. Try to convert each window into a checkmate, promotion, or multi-ply tactic candidate.
 5. Reject anything that fails the existing puzzle validator.
-6. Print only valid draft candidates as JSON snippets for manual review.
+6. Reject trivial first-move captures, low-choice positions, and unclear tactical ideas.
+7. Print only valid draft candidates as JSON snippets for manual review.
+
+Each surviving candidate now carries:
+
+- source game id and source ply
+- auto-derived tags such as `fork`, `trap`, `promotion`, `mate`, `endgame`
+- a difficulty score based on depth, move ambiguity, and board complexity
 
 ## Review Standard
 
@@ -108,7 +142,7 @@ After generation:
 
 ## Current Limitation
 
-This first workflow mines only 3-ply candidates. That matches the current need for trustworthy multi-ply imports without overcomplicating the generator.
+The current workflow mines only odd-length forcing branches, with 3-ply and 5-ply windows enabled by default. That keeps the output focused on puzzles that ask for at least 2-3 move calculation.
 
 ## Optional Self-Play Source
 

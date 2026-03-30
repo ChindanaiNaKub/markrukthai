@@ -15,6 +15,12 @@ import {
   isMateTheme,
   isPromotionTheme,
 } from './puzzleThemes';
+import {
+  countBoardActivePieces,
+  countBoardPawns,
+  countBoardPieces,
+  isMiddlegameRichBoard,
+} from './puzzleMetadata';
 
 export interface PuzzleValidationResult {
   puzzleId: number;
@@ -295,6 +301,35 @@ function validateMetadata(puzzle: Puzzle, errors: string[], warnings: string[]):
   }
 }
 
+function validateAdvancedTier(puzzle: Puzzle, errors: string[]): void {
+  if (puzzle.difficulty !== 'advanced') {
+    return;
+  }
+
+  if (puzzle.solution.length < 3) {
+    errors.push('Advanced puzzles must require at least 3 plies of calculation.');
+  }
+
+  if (isMateTheme(puzzle.theme) || isPromotionTheme(puzzle.theme)) {
+    errors.push('Advanced puzzles must focus on tactical advantage, not direct mate or promotion themes.');
+  }
+
+  const firstMove = puzzle.solution[0];
+  const firstMoveIsCapture = firstMove
+    ? Boolean(puzzle.board[firstMove.to.row]?.[firstMove.to.col])
+    : false;
+
+  if (firstMoveIsCapture) {
+    errors.push('Advanced puzzles must not open with an immediate capture.');
+  }
+
+  if (!isMiddlegameRichBoard(puzzle.board)) {
+    errors.push(
+      `Advanced puzzles must come from rich middlegame positions (found ${countBoardPieces(puzzle.board)} pieces, ${countBoardPawns(puzzle.board)} pawns, ${countBoardActivePieces(puzzle.board)} active non-pawn pieces).`,
+    );
+  }
+}
+
 export function validatePuzzle(puzzle: Puzzle): PuzzleValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -322,6 +357,7 @@ export function validatePuzzle(puzzle: Puzzle): PuzzleValidationResult {
   }
 
   validateMetadata(puzzle, errors, warnings);
+  validateAdvancedTier(puzzle, errors);
 
   let state = createGameStateFromPuzzle(puzzle);
   const defendingColor: PieceColor = puzzle.toMove === 'white' ? 'black' : 'white';

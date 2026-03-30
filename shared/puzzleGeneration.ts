@@ -5,6 +5,7 @@ import type { Puzzle } from './puzzles';
 import type { PuzzleCandidateDraft } from './puzzleImportQueue';
 import { validatePuzzle } from './puzzleValidation';
 import { isMateTheme, isPromotionTheme, isTacticalTheme } from './puzzleThemes';
+import { derivePuzzleTags, estimatePuzzleDifficultyScore, isMiddlegameRichBoard } from './puzzleMetadata';
 
 export interface PuzzleGenerationSource {
   id: string;
@@ -12,6 +13,7 @@ export interface PuzzleGenerationSource {
   moves: Move[];
   initialBoard?: Board;
   startingTurn?: PieceColor;
+  startingPlyNumber?: number;
   moveCount?: number;
   result?: string;
   resultReason?: string;
@@ -45,11 +47,16 @@ type GeneratedTheme =
   | 'Tactic'
   | 'Fork'
   | 'Pin'
-  | 'HangingPiece';
+  | 'HangingPiece'
+  | 'DoubleAttack'
+  | 'Discovery'
+  | 'TrappedPiece'
+  | 'Endgame';
 
 interface ThemeAnalysis {
   theme: GeneratedTheme;
   materialSwing: number;
+  tags: string[];
 }
 
 const DEFAULT_MIN_PLIES = 3;
@@ -57,6 +64,22 @@ const DEFAULT_MAX_PLIES = 3;
 const DEFAULT_STARTING_ID = 2000;
 const DEFAULT_MIN_SOURCE_MOVES = 12;
 const DEFAULT_REJECT_RESULT_REASONS = new Set(['agreement', 'max_plies', 'stopped']);
+
+function getSeedDifficulty(
+  board: Board,
+  theme: GeneratedTheme,
+  solutionLength: number,
+): PuzzleCandidateDraft['difficulty'] {
+  if (solutionLength < 3) {
+    return 'beginner';
+  }
+
+  if (isMateTheme(theme) || isPromotionTheme(theme)) {
+    return 'intermediate';
+  }
+
+  return isMiddlegameRichBoard(board) ? 'advanced' : 'intermediate';
+}
 
 function cloneBoard(board: Board): Board {
   return board.map(row => row.map(cell => (cell ? { ...cell } : null)));
@@ -93,15 +116,40 @@ function createPlaceholderPuzzle(
   source: string,
   motif: string,
 ): Puzzle {
+  const difficulty = getSeedDifficulty(board, theme, solution.length);
+  const tags = derivePuzzleTags({
+    theme,
+    difficulty,
+    source,
+    motif,
+    board,
+    toMove,
+    solution,
+  });
+
   return {
     id: 0,
     title,
     description,
     explanation,
     source,
+    origin: source.toLowerCase().startsWith('starter pack:') ? 'starter-pack' : 'review-batch',
+    sourceGameId: null,
+    sourcePly: null,
     theme,
     motif,
-    difficulty: solution.length >= 5 ? 'advanced' : 'intermediate',
+    tags,
+    difficultyScore: estimatePuzzleDifficultyScore({
+      theme,
+      difficulty,
+      source,
+      motif,
+      board,
+      toMove,
+      solution,
+      tags,
+    }),
+    difficulty,
     reviewStatus: 'quarantine',
     reviewChecklist: {
       themeClarity: 'unreviewed',
@@ -283,6 +331,103 @@ function getAttackedEnemyTargets(board: Board, attackerPos: Position, attackerCo
   return targets;
 }
 
+function getAttackedEnemyTargetSquares(board: Board, attackerPos: Position, attackerColor: PieceColor): Position[] {
+  const attackedSquares = getPseudoAttackSquares(board, attackerPos);
+
+  return attackedSquares.filter(square => {
+    const piece = board[square.row]?.[square.col];
+    return Boolean(piece && piece.color !== attackerColor);
+  });
+}
+
+function countPieces(board: Board): number {
+  return board.reduce((total, row) => total + row.filter(Boolean).length, 0);
+}
+
+function getSafeMovesForPiece(board: Board, from: Position): Position[] {
+  const piece = board[from.row]?.[from.col];
+  if (!piece) return [];
+
+  const state = createGameState(board, piece.color);
+
+  return getLegalMoves(board, from).filter(to => {
+    const nextState = makeMove(state, from, to);
+    if (!nextState) return false;
+    return getAttackers(nextState.board, to, getOpponent(piece.color)).length === 0;
+  });
+}
+
+function createsDiscovery(initialBoard: Board, boardAfterFirstMove: Board, firstMove: Move, attackerColor: PieceColor): boolean {
+  const movedPiece = initialBoard[firstMove.from.row]?.[firstMove.from.col];
+  if (!movedPiece || movedPiece.type === 'R') {
+    return false;
+  }
+
+  for (let row = 0; row < 8; row += 1) {
+    for (let col = 0; col < 8; col += 1) {
+      const piece = boardAfterFirstMove[row][col];
+      if (!piece || piece.color !== attackerColor || piece.type !== 'R') continue;
+      if (row === firstMove.to.row && col === firstMove.to.col) continue;
+
+      const beforeTargets = new Set(
+        getAttackedEnemyTargetSquares(initialBoard, { row, col }, attackerColor)
+          .map(square => `${square.row}:${square.col}`),
+      );
+      const afterTargets = getAttackedEnemyTargetSquares(boardAfterFirstMove, { row, col }, attackerColor);
+
+      if (afterTargets.some(square => !beforeTargets.has(`${square.row}:${square.col}`))) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function getTrappedTargetAfterFirstMove(
+  stateAfterFirstMove: GameState,
+  solution: Move[],
+  toMove: PieceColor,
+): Position | null {
+  if (solution.length < 3) {
+    return null;
+  }
+
+  const defenseMove = solution[1];
+  const finalMove = solution[solution.length - 1];
+  const targetAtFinalSquare = stateAfterFirstMove.board[finalMove.to.row]?.[finalMove.to.col];
+  if (targetAtFinalSquare && targetAtFinalSquare.color !== toMove) {
+    return finalMove.to;
+  }
+
+  const movedTarget = stateAfterFirstMove.board[defenseMove.from.row]?.[defenseMove.from.col];
+  if (
+    movedTarget &&
+    movedTarget.color !== toMove &&
+    defenseMove.to.row === finalMove.to.row &&
+    defenseMove.to.col === finalMove.to.col
+  ) {
+    return defenseMove.from;
+  }
+
+  return null;
+}
+
+function createsTrappedPiece(stateAfterFirstMove: GameState, solution: Move[], toMove: PieceColor): boolean {
+  const targetSquare = getTrappedTargetAfterFirstMove(stateAfterFirstMove, solution, toMove);
+  if (!targetSquare) return false;
+
+  const targetPiece = stateAfterFirstMove.board[targetSquare.row]?.[targetSquare.col];
+  if (!targetPiece || targetPiece.color === toMove) return false;
+
+  const safeMoves = getSafeMovesForPiece(stateAfterFirstMove.board, targetSquare);
+  return safeMoves.length <= 1;
+}
+
+function isEndgameBoard(board: Board): boolean {
+  return countPieces(board) <= 8;
+}
+
 function createsPin(board: Board, attackerPos: Position, attackerColor: PieceColor): boolean {
   const attacker = board[attackerPos.row]?.[attackerPos.col];
   if (!attacker || attacker.color !== attackerColor || attacker.type !== 'R') {
@@ -324,7 +469,7 @@ export function classifyMaterialTheme(
   board: Board,
   toMove: PieceColor,
   solution: Move[],
-): 'Fork' | 'Pin' | 'HangingPiece' | 'Tactic' {
+): 'Fork' | 'Pin' | 'HangingPiece' | 'Tactic' | 'DoubleAttack' | 'Discovery' | 'TrappedPiece' | 'Endgame' {
   const firstMove = solution[0];
   const initialState = createGameState(board, toMove);
 
@@ -333,6 +478,10 @@ export function classifyMaterialTheme(
     const movedPiece = firstState?.board[firstMove.to.row]?.[firstMove.to.col];
 
     if (firstState && movedPiece) {
+      if (createsDiscovery(board, firstState.board, firstMove, movedPiece.color)) {
+        return 'Discovery';
+      }
+
       if (createsPin(firstState.board, firstMove.to, movedPiece.color)) {
         return 'Pin';
       }
@@ -341,7 +490,11 @@ export function classifyMaterialTheme(
       const attacksKing = attackedTargets.some(piece => piece.type === 'K');
       const attacksPieces = attackedTargets.filter(piece => piece.type !== 'K').length;
       if ((attacksKing && attacksPieces >= 1) || attacksPieces >= 2) {
-        return 'Fork';
+        return movedPiece.type === 'N' ? 'Fork' : 'DoubleAttack';
+      }
+
+      if (createsTrappedPiece(firstState, solution, toMove)) {
+        return 'TrappedPiece';
       }
     }
   }
@@ -363,17 +516,26 @@ export function classifyMaterialTheme(
     state = nextState;
   }
 
+  if (isEndgameBoard(board)) {
+    return 'Endgame';
+  }
+
   return 'Tactic';
 }
 
 function analyzeTheme(board: Board, toMove: PieceColor, solution: Move[]): ThemeAnalysis | null {
   const initialState = createGameState(board, toMove);
   const finalState = playMoveSequence(initialState, solution);
+  const firstMove = solution[0];
+  const firstMoveCapture = firstMove
+    ? Boolean(board[firstMove.to.row]?.[firstMove.to.col])
+    : false;
 
   if (!finalState) return null;
   if (finalState.isCheckmate) {
+    const theme = solution.length <= 1 ? 'MateIn1' : solution.length <= 3 ? 'MateIn2' : 'MateIn3';
     return {
-      theme: solution.length <= 1 ? 'MateIn1' : solution.length <= 3 ? 'MateIn2' : 'MateIn3',
+      theme,
       materialSwing: getMaterialSwing(
         createPlaceholderPuzzle(
           board,
@@ -388,6 +550,15 @@ function analyzeTheme(board: Board, toMove: PieceColor, solution: Move[]): Theme
         ),
         finalState,
       ),
+      tags: derivePuzzleTags({
+        theme,
+        difficulty: getSeedDifficulty(board, theme, solution.length),
+        source: 'Generated real-game candidate',
+        motif: 'Generated mate candidate',
+        board,
+        toMove,
+        solution,
+      }),
     };
   }
   if (finalState.moveHistory[finalState.moveHistory.length - 1]?.promoted) {
@@ -407,6 +578,15 @@ function analyzeTheme(board: Board, toMove: PieceColor, solution: Move[]): Theme
         ),
         finalState,
       ),
+      tags: derivePuzzleTags({
+        theme: 'Promotion',
+        difficulty: getSeedDifficulty(board, 'Promotion', solution.length),
+        source: 'Generated real-game candidate',
+        motif: 'Generated promotion candidate',
+        board,
+        toMove,
+        solution,
+      }),
     };
   }
 
@@ -425,16 +605,68 @@ function analyzeTheme(board: Board, toMove: PieceColor, solution: Move[]): Theme
     finalState,
   );
 
-  return swing >= TACTICAL_WIN_SWING
-    ? {
-      theme: classifyMaterialTheme(board, toMove, solution),
-      materialSwing: swing,
-    }
-    : null;
+  if (swing < TACTICAL_WIN_SWING) {
+    return null;
+  }
+
+  const theme = classifyMaterialTheme(board, toMove, solution);
+  if (solution.length < 3) {
+    return null;
+  }
+
+  if (firstMoveCapture && (theme === 'HangingPiece' || theme === 'Tactic')) {
+    return null;
+  }
+
+  return {
+    theme,
+    materialSwing: swing,
+    tags: derivePuzzleTags({
+      theme,
+      difficulty: getSeedDifficulty(board, theme, solution.length),
+      source: 'Generated real-game candidate',
+      motif: 'Generated tactical candidate',
+      board,
+      toMove,
+      solution,
+      tags: firstMoveCapture ? [] : ['quiet-first-move'],
+    }),
+  };
 }
 
-function buildCopy(theme: GeneratedTheme, sourceId: string, windowStart: number, solution: Move[]) {
-  const plyLabel = windowStart + 1;
+function getGeneratedDifficulty(
+  board: Board,
+  toMove: PieceColor,
+  solution: Move[],
+  theme: GeneratedTheme,
+  source: string,
+  motif: string,
+  tags: string[],
+): { difficulty: PuzzleCandidateDraft['difficulty']; difficultyScore: number } {
+  const seededDifficulty = getSeedDifficulty(board, theme, solution.length);
+  const difficultyScore = estimatePuzzleDifficultyScore({
+    theme,
+    difficulty: seededDifficulty,
+    source,
+    motif,
+    board,
+    toMove,
+    solution,
+    tags,
+  });
+
+  const difficulty = isMateTheme(theme) || isPromotionTheme(theme)
+    ? seededDifficulty
+    : difficultyScore >= 1320
+      ? 'advanced'
+      : difficultyScore >= 930
+        ? 'intermediate'
+        : 'beginner';
+
+  return { difficulty, difficultyScore };
+}
+
+function buildCopy(theme: GeneratedTheme, sourceId: string, plyLabel: number, solution: Move[]) {
 
   if (isMateTheme(theme)) {
     const mateCount = Math.floor((solution.length + 1) / 2);
@@ -465,6 +697,24 @@ function buildCopy(theme: GeneratedTheme, sourceId: string, windowStart: number,
     };
   }
 
+  if (theme === 'DoubleAttack') {
+    return {
+      title: `Real-Game Double Attack (${sourceId} @ ply ${plyLabel})`,
+      description: `Win material in 2. Start with the double attack that overloads the defense.`,
+      explanation: `The first move creates two threats at once, so the defender cannot save everything and the ${target} falls.`,
+      motif: `Real-game double attack candidate: wins ${target}`,
+    };
+  }
+
+  if (theme === 'Discovery') {
+    return {
+      title: `Real-Game Discovery (${sourceId} @ ply ${plyLabel})`,
+      description: `Win material in 2. Find the discovered attack that reveals the winning line.`,
+      explanation: `A quiet move opens a hidden line of attack, forcing the defense to react while the ${target} remains loose.`,
+      motif: `Real-game discovery candidate: wins ${target}`,
+    };
+  }
+
   if (theme === 'Pin') {
     return {
       title: `Real-Game Pin (${sourceId} @ ply ${plyLabel})`,
@@ -483,6 +733,24 @@ function buildCopy(theme: GeneratedTheme, sourceId: string, windowStart: number,
     };
   }
 
+  if (theme === 'TrappedPiece') {
+    return {
+      title: `Real-Game Trapped Piece (${sourceId} @ ply ${plyLabel})`,
+      description: 'Win material in 2. Start with the move that traps the piece before collecting it.',
+      explanation: 'The first move cuts off the escape squares. Black can shuffle, but the trapped piece still falls on the next move.',
+      motif: 'Real-game trapped piece candidate',
+    };
+  }
+
+  if (theme === 'Endgame') {
+    return {
+      title: `Real-Game Endgame Tactic (${sourceId} @ ply ${plyLabel})`,
+      description: `Convert the endgame in 2. Find the forcing move that wins the ${target}.`,
+      explanation: `With fewer pieces on the board, a single forcing move decides the ending and wins the ${target}.`,
+      motif: `Real-game endgame tactic candidate: wins ${target}`,
+    };
+  }
+
   return {
     title: `Real-Game Tactic (${sourceId} @ ply ${plyLabel})`,
     description: `Win material in 2. Start with the forcing move that wins the ${target}.`,
@@ -498,22 +766,49 @@ function toDraft(
   sourceId: string,
   sourceLabel: string,
   windowStart: number,
+  startingPlyNumber: number,
   id: number,
 ): PuzzleCandidateDraft | null {
   const analysis = analyzeTheme(board, toMove, solution);
   if (!analysis) return null;
 
-  const copy = buildCopy(analysis.theme, sourceId, windowStart, solution);
+  const plyLabel = startingPlyNumber + windowStart;
+  const copy = buildCopy(analysis.theme, sourceId, plyLabel, solution);
+  const sourceWithPly = `${sourceLabel} (ply ${plyLabel})`;
+  const tags = derivePuzzleTags({
+    theme: analysis.theme,
+    difficulty: solution.length >= 5 ? 'advanced' : solution.length >= 3 ? 'intermediate' : 'beginner',
+    source: sourceWithPly,
+    motif: copy.motif,
+    board,
+    toMove,
+    solution,
+    tags: analysis.tags,
+  });
+  const { difficulty, difficultyScore } = getGeneratedDifficulty(
+    board,
+    toMove,
+    solution,
+    analysis.theme,
+    sourceWithPly,
+    copy.motif,
+    tags,
+  );
 
   return {
     id,
     title: copy.title,
     description: copy.description,
     explanation: copy.explanation,
-    source: `${sourceLabel} (ply ${windowStart + 1})`,
+    source: sourceWithPly,
+    origin: sourceLabel.toLowerCase().startsWith('exported') ? 'real-game' : 'seed-game',
+    sourceGameId: sourceId,
+    sourcePly: plyLabel,
     theme: analysis.theme,
     motif: copy.motif,
-    difficulty: solution.length >= 5 ? 'advanced' : 'intermediate',
+    tags,
+    difficultyScore,
+    difficulty,
     toMove,
     board: cloneBoard(board),
     solution: solution.map(move => ({
@@ -551,6 +846,38 @@ function scoreCandidate(
   return themeBase + boardComplexityBonus + gameLengthBonus - warningPenalty;
 }
 
+function passesQualityGate(state: GameState, draft: PuzzleCandidateDraft): boolean {
+  const legalMoveCount = (() => {
+    let total = 0;
+    for (let row = 0; row < 8; row += 1) {
+      for (let col = 0; col < 8; col += 1) {
+        const piece = state.board[row][col];
+        if (!piece || piece.color !== state.turn) continue;
+        total += getLegalMoves(state.board, { row, col }).length;
+      }
+    }
+    return total;
+  })();
+  const firstMove = draft.solution[0];
+  const firstMoveCapture = firstMove
+    ? Boolean(state.board[firstMove.to.row]?.[firstMove.to.col])
+    : false;
+
+  if (draft.solution.length < 3) {
+    return false;
+  }
+
+  if (legalMoveCount < 4) {
+    return false;
+  }
+
+  if (firstMoveCapture && (draft.theme === 'HangingPiece' || draft.theme === 'Tactic')) {
+    return false;
+  }
+
+  return true;
+}
+
 export function generatePuzzleCandidateDraftsFromMoveSequence(
   input: PuzzleGenerationSource,
   options: PuzzleGenerationOptions = {},
@@ -565,6 +892,7 @@ export function generatePuzzleCandidateDraftsFromMoveSequence(
   const seen = new Set<string>();
   const generated: GeneratedPuzzleCandidate[] = [];
   const sourceMoveCount = input.moveCount ?? input.moves.length;
+  const startingPlyNumber = input.startingPlyNumber ?? 1;
 
   if (sourceMoveCount < minSourceMoves) {
     return generated;
@@ -594,10 +922,12 @@ export function generatePuzzleCandidateDraftsFromMoveSequence(
         input.id,
         input.source,
         index,
+        startingPlyNumber,
         startingId + generated.length,
       );
 
       if (!draft) continue;
+      if (!passesQualityGate(state, draft)) continue;
 
       const key = dedupeKey(draft.board, solution, draft.toMove);
       if (seen.has(key)) continue;
@@ -658,7 +988,7 @@ export function createDefaultGenerationSource(
   moves: Move[],
   initialBoard?: Board,
   startingTurn: PieceColor = 'white',
-  metadata: Pick<PuzzleGenerationSource, 'moveCount' | 'result' | 'resultReason'> = {},
+  metadata: Pick<PuzzleGenerationSource, 'moveCount' | 'result' | 'resultReason' | 'startingPlyNumber'> = {},
 ): PuzzleGenerationSource {
   return {
     id,
@@ -666,6 +996,7 @@ export function createDefaultGenerationSource(
     moves,
     initialBoard: initialBoard ?? createInitialBoard(),
     startingTurn,
+    startingPlyNumber: metadata.startingPlyNumber ?? 1,
     ...metadata,
   };
 }

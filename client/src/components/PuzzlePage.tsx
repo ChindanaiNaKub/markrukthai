@@ -6,7 +6,7 @@ import { PUZZLES } from '@shared/puzzles';
 import { createGameStateFromPuzzle, getForcingMoves, getPliesRemaining, isThemeSatisfied } from '@shared/puzzleSolver';
 import { playMoveSound, playCaptureSound, playCheckSound, playGameOverSound } from '../lib/sounds';
 import { useTranslation } from '../lib/i18n';
-import { usePuzzleProgress } from '../lib/puzzleProgress';
+import { usePuzzleProgress, usePuzzleProgressSummary } from '../lib/puzzleProgress';
 import { BoardErrorBoundary } from './BoardErrorBoundary';
 import Header from './Header';
 import Board from './Board';
@@ -40,6 +40,19 @@ function getPuzzleSourceLabel(
     return t('puzzle.source_review_batch');
   }
 
+  const seedGameMatch = source.match(/^Seed game corpus:\s*[a-z0-9_-]+\s+\(ply (\d+)\)$/i);
+  if (seedGameMatch) {
+    return t('puzzle.source_seed_game_ply', { ply: seedGameMatch[1] });
+  }
+
+  if (source.startsWith('Curated tactic:')) {
+    return t('puzzle.source_curated_tactic');
+  }
+
+  if (source.startsWith('Tactical motif:')) {
+    return t('puzzle.source_tactical_motif');
+  }
+
   return source;
 }
 
@@ -50,12 +63,20 @@ function formatActivityDate(timestamp: number, lang: string): string {
   }).format(new Date(timestamp * 1000));
 }
 
+function formatPuzzleTag(tag: string): string {
+  return tag
+    .split('-')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function PuzzleListPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<PuzzleListFilter>('all');
   const [themeFilter, setThemeFilter] = useState<string>('all');
   const { completedPuzzleIds, completedPuzzleSet } = usePuzzleProgress();
+  const puzzleSummary = usePuzzleProgressSummary();
 
   const puzzlesForFilter = (difficulty: PuzzleListFilter) => (
     difficulty === 'all'
@@ -89,7 +110,9 @@ function PuzzleListPage() {
   const completedInFilter = filteredPuzzles.filter(puzzle => completedPuzzleSet.has(puzzle.id));
   const unsolvedInFilter = filteredPuzzles.filter(puzzle => !completedPuzzleSet.has(puzzle.id));
   const sortedFilteredPuzzles = [...unsolvedInFilter, ...completedInFilter];
-  const recommendedPuzzle = unsolvedInFilter[0] ?? filteredPuzzles[0] ?? null;
+  const recommendedPuzzle = puzzleSummary.nextPuzzle && filteredPuzzles.some(candidate => candidate.id === puzzleSummary.nextPuzzle?.id)
+    ? puzzleSummary.nextPuzzle
+    : unsolvedInFilter[0] ?? filteredPuzzles[0] ?? null;
   const filterCompletionPercent = filteredPuzzles.length > 0
     ? Math.round((completedInFilter.length / filteredPuzzles.length) * 100)
     : 0;
@@ -211,6 +234,22 @@ function PuzzleListPage() {
                 </p>
                 <p className="text-xs text-text-dim mt-1">{t('puzzle.focus_desc')}</p>
               </div>
+              <div className="rounded-xl border border-surface-hover bg-surface/70 px-4 py-3 sm:col-span-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-text-dim mb-1">{t('puzzle.rating_label')}</p>
+                    <p className="font-semibold text-text-bright">{puzzleSummary.recommendedDifficultyScore}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-text-dim mb-1">{t('puzzle.success_rate')}</p>
+                    <p className="font-semibold text-text-bright">{puzzleSummary.successRate}%</p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.16em] text-text-dim mb-1">{t('puzzle.attempts_label')}</p>
+                    <p className="font-semibold text-text-bright">{puzzleSummary.attemptCount}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 
@@ -228,6 +267,9 @@ function PuzzleListPage() {
                   </span>
                   <span className="text-xs px-2 py-1 rounded bg-surface border border-surface-hover text-text-dim">
                     {t(`theme.${recommendedPuzzle.theme}`)}
+                  </span>
+                  <span className="text-xs px-2 py-1 rounded bg-surface border border-surface-hover text-text-dim">
+                    {t('puzzle.rating_short', { score: recommendedPuzzle.difficultyScore })}
                   </span>
                 </div>
                 <p className="text-xs text-text-dim mt-4">
@@ -382,6 +424,14 @@ function PuzzleListPage() {
                       {t(`theme.${puzzle.theme}`)}
                     </span>
                     <span className="text-xs text-text-dim px-2 py-0.5 rounded bg-surface border border-surface-hover">
+                      {t('puzzle.rating_short', { score: puzzle.difficultyScore })}
+                    </span>
+                    {puzzle.tags.slice(0, 2).map((tag) => (
+                      <span key={tag} className="text-xs text-text-dim px-2 py-0.5 rounded bg-surface border border-surface-hover">
+                        {formatPuzzleTag(tag)}
+                      </span>
+                    ))}
+                    <span className="text-xs text-text-dim px-2 py-0.5 rounded bg-surface border border-surface-hover">
                       {getPuzzleSourceLabel(puzzle.source, t)}
                     </span>
                     <span className="text-xs text-text-dim ml-auto">
@@ -410,7 +460,7 @@ function PuzzleListPage() {
 function PuzzlePlayer() {
   const { t, lang } = useTranslation();
   const navigate = useNavigate();
-  const { progressRecords, completedPuzzleSet, recordPuzzleVisited, markPuzzleCompleted } = usePuzzleProgress();
+  const { progressRecords, completedPuzzleSet, recordPuzzleVisited, recordPuzzleFailed, markPuzzleCompleted } = usePuzzleProgress();
   const { id } = useParams<{ id: string }>();
   const puzzleId = parseInt(id || '1');
   const puzzle = PUZZLES.find(p => p.id === puzzleId);
@@ -471,6 +521,7 @@ function PuzzlePlayer() {
 
     const replyMoves = getForcingMoves(stateAfterPlayerMove, puzzle);
     if (!replyMoves.length) {
+      void recordPuzzleFailed(puzzleId);
       setStatus('failed');
       return;
     }
@@ -490,6 +541,7 @@ function PuzzlePlayer() {
       autoReplyTimeoutRef.current = null;
 
       if (!replyState) {
+        void recordPuzzleFailed(puzzleId);
         setStatus('failed');
         return;
       }
@@ -506,11 +558,12 @@ function PuzzlePlayer() {
       } else {
         const nextSolverMoves = getForcingMoves(replyState, puzzle);
         if (!nextSolverMoves.length && getPliesRemaining(puzzle, replyState) > 0) {
+          void recordPuzzleFailed(puzzleId);
           setStatus('failed');
         }
       }
     }, 450);
-  }, [finishPuzzle, puzzle]);
+  }, [finishPuzzle, puzzle, puzzleId, recordPuzzleFailed]);
 
   const handleSquareClick = useCallback((pos: Position) => {
     if (!gameState || !puzzle || status !== 'playing') return;
@@ -545,6 +598,7 @@ function PuzzlePlayer() {
             queueOpponentReply(newState);
           }
         } else {
+          void recordPuzzleFailed(puzzleId);
           setStatus('failed');
           setSelectedSquare(null);
           setLegalMoves([]);
@@ -560,7 +614,7 @@ function PuzzlePlayer() {
       setSelectedSquare(null);
       setLegalMoves([]);
     }
-  }, [gameState, puzzle, selectedSquare, legalMoves, status, queueOpponentReply]);
+  }, [gameState, puzzle, puzzleId, selectedSquare, legalMoves, status, queueOpponentReply, recordPuzzleFailed]);
 
   const handlePieceDrop = useCallback((from: Position, to: Position) => {
     if (!gameState || !puzzle || status !== 'playing') return;
@@ -594,11 +648,12 @@ function PuzzlePlayer() {
         queueOpponentReply(newState);
       }
     } else {
+      void recordPuzzleFailed(puzzleId);
       setStatus('failed');
       setSelectedSquare(null);
       setLegalMoves([]);
     }
-  }, [gameState, puzzle, status, queueOpponentReply]);
+  }, [gameState, puzzle, puzzleId, status, queueOpponentReply, recordPuzzleFailed]);
 
   const handleRetry = () => {
     if (autoReplyTimeoutRef.current !== null) {
@@ -751,10 +806,18 @@ function PuzzlePlayer() {
               <p className="text-text-dim text-xs sm:text-sm mb-3">{puzzle.description}</p>
               <div className="flex flex-wrap items-center gap-2 text-xs text-text-dim">
                 <span className="px-2 py-0.5 rounded bg-surface border border-surface-hover">{t('theme.' + puzzle.theme)}</span>
+                <span className="px-2 py-0.5 rounded bg-surface border border-surface-hover">{t('puzzle.rating_short', { score: puzzle.difficultyScore })}</span>
                 <span>{t('puzzle.to_move', { color: currentTurnLabel })}</span>
                 <span className="ml-auto rounded bg-surface px-2 py-0.5 border border-surface-hover">
                   {getPuzzleSourceLabel(puzzle.source, t)}
                 </span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs text-text-dim">
+                {puzzle.tags.map((tag) => (
+                  <span key={tag} className="rounded-full border border-surface-hover bg-surface px-2.5 py-1">
+                    {formatPuzzleTag(tag)}
+                  </span>
+                ))}
               </div>
             </div>
 
@@ -798,6 +861,16 @@ function PuzzlePlayer() {
                 <span className="rounded-full border border-surface-hover bg-surface px-2.5 py-1 text-xs text-text-dim">
                   {t('puzzle.activity_status_label')}: {activityStatusLabel}
                 </span>
+                {progressRecord && (
+                  <span className="rounded-full border border-surface-hover bg-surface px-2.5 py-1 text-xs text-text-dim">
+                    {t('puzzle.attempts_label')}: {progressRecord.attempts}
+                  </span>
+                )}
+                {progressRecord && progressRecord.attempts > 0 && (
+                  <span className="rounded-full border border-surface-hover bg-surface px-2.5 py-1 text-xs text-text-dim">
+                    {t('puzzle.success_rate')}: {Math.round((progressRecord.successes / progressRecord.attempts) * 100)}%
+                  </span>
+                )}
                 {progressRecord?.lastPlayedAt && (
                   <span className="rounded-full border border-surface-hover bg-surface px-2.5 py-1 text-xs text-text-dim">
                     {t('puzzle.activity_last_played', { date: formatActivityDate(progressRecord.lastPlayedAt, lang) })}

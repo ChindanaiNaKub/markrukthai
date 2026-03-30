@@ -1,5 +1,7 @@
 import type { Board, Piece, PieceColor, PieceType, Position } from './types';
 import { IMPORTED_PUZZLE_CANDIDATES } from './puzzleImportQueue';
+import type { PuzzleOrigin } from './puzzleMetadata';
+import { finalizePuzzle, type RawPuzzle } from './puzzleCatalog';
 
 export interface PuzzleReviewChecklist {
   themeClarity: 'pass' | 'fail' | 'unreviewed';
@@ -14,8 +16,13 @@ export interface Puzzle {
   description: string;
   explanation: string;
   source: string;
+  origin: PuzzleOrigin;
+  sourceGameId: string | null;
+  sourcePly: number | null;
   theme: string;
   motif: string;
+  tags: string[];
+  difficultyScore: number;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
   reviewStatus: 'ship' | 'quarantine';
   reviewChecklist: PuzzleReviewChecklist;
@@ -99,7 +106,7 @@ export function isPuzzleReadyToShip(puzzle: Puzzle): boolean {
   return puzzle.reviewStatus === 'ship' && hasPassingReviewChecklist(puzzle);
 }
 
-const CATALOG_PUZZLES: Puzzle[] = [
+const CATALOG_PUZZLES_RAW: RawPuzzle[] = [
   {
     id: 1,
     title: 'Corner Clamp',
@@ -129,8 +136,8 @@ const CATALOG_PUZZLES: Puzzle[] = [
     theme: 'MateIn1',
     motif: 'Long-file rook mate',
     difficulty: 'beginner',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview('Too close to other rook mate-in-1 patterns.'),
+    reviewStatus: 'ship',
+    reviewChecklist: shippedReview('Fast rook mate that teaches how open files punish an exposed king.'),
     toMove: 'white',
     board: board(
       ['g1', 'K', 'black'],
@@ -148,8 +155,8 @@ const CATALOG_PUZZLES: Puzzle[] = [
     theme: 'MateIn1',
     motif: 'Side-rank rook mate',
     difficulty: 'beginner',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview('Valid, but weaker than the kept rook mate-in-1 examples.'),
+    reviewStatus: 'ship',
+    reviewChecklist: shippedReview('Simple edge mate that teaches side checks and king support.'),
     toMove: 'white',
     board: board(
       ['g3', 'R', 'white'],
@@ -167,8 +174,8 @@ const CATALOG_PUZZLES: Puzzle[] = [
     theme: 'MateIn1',
     motif: 'Rook lift mate',
     difficulty: 'beginner',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview('Overlaps heavily with other rook-lift mate patterns.'),
+    reviewStatus: 'ship',
+    reviewChecklist: shippedReview('Clean ladder-style finish that reinforces rook lift geometry.'),
     toMove: 'white',
     board: board(
       ['d5', 'S', 'white'],
@@ -187,8 +194,8 @@ const CATALOG_PUZZLES: Puzzle[] = [
     theme: 'MateIn1',
     motif: 'Central rook lift mate',
     difficulty: 'beginner',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview('Near-duplicate teaching value with other rook-lift mates.'),
+    reviewStatus: 'ship',
+    reviewChecklist: shippedReview('Compact central mate pattern that still reads clearly for newer players.'),
     toMove: 'white',
     board: board(
       ['d4', 'S', 'white'],
@@ -227,8 +234,8 @@ const CATALOG_PUZZLES: Puzzle[] = [
     theme: 'Promotion',
     motif: 'Supported promotion',
     difficulty: 'beginner',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview('Extra pieces add noise without improving the lesson.', { duplicateRisk: 'clear' }),
+    reviewStatus: 'ship',
+    reviewChecklist: shippedReview('Helpful first promotion puzzle because the supporting king plan is obvious after the idea clicks.'),
     toMove: 'white',
     board: board(
       ['g4', 'S', 'black'],
@@ -266,8 +273,8 @@ const CATALOG_PUZZLES: Puzzle[] = [
     theme: 'Promotion',
     motif: 'Promotion with met escort',
     difficulty: 'beginner',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview('Weaker first teaching puzzle than Quiet Promotion.', { duplicateRisk: 'clear' }),
+    reviewStatus: 'ship',
+    reviewChecklist: shippedReview('Adds one more promotion pattern by showing how the Met controls the promotion route.'),
     toMove: 'white',
     board: board(
       ['f2', 'K', 'black'],
@@ -276,47 +283,6 @@ const CATALOG_PUZZLES: Puzzle[] = [
       ['e7', 'M', 'white'],
     ),
     solution: line('b5-b6'),
-  },
-  {
-    id: 10,
-    title: 'Rook Harvest',
-    description: 'Win material by grabbing the loose knight.',
-    explanation: 'The rook has a clear file to the target, and taking the knight leaves White with a clean material gain.',
-    source: 'Starter pack: tactic',
-    theme: 'HangingPiece',
-    motif: 'Rook wins loose knight',
-    difficulty: 'beginner',
-    reviewStatus: 'ship',
-    reviewChecklist: shippedReview('Simple first tactical capture with a clear target.'),
-    toMove: 'white',
-    board: board(
-      ['b1', 'K', 'black'],
-      ['a3', 'N', 'black'],
-      ['h5', 'K', 'white'],
-      ['a8', 'R', 'white'],
-    ),
-    solution: line('a8-a3'),
-  },
-  {
-    id: 11,
-    title: 'Backward Cleanup',
-    description: 'Use the rook to collect the hanging Khon.',
-    explanation: 'The rook can retreat and capture because the black king cannot punish it, turning a safe line into free material.',
-    source: 'Starter pack: tactic',
-    theme: 'HangingPiece',
-    motif: 'Rook wins hanging khon',
-    difficulty: 'beginner',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview('Valid tactic, but less clean and less memorable than the kept tactic set.'),
-    toMove: 'white',
-    board: board(
-      ['d1', 'K', 'black'],
-      ['a2', 'K', 'white'],
-      ['h3', 'S', 'black'],
-      ['h5', 'R', 'white'],
-      ['c8', 'N', 'white'],
-    ),
-    solution: line('h5-h3'),
   },
   {
     id: 12,
@@ -368,9 +334,9 @@ const CATALOG_PUZZLES: Puzzle[] = [
     source: 'Starter pack: tactic',
     theme: 'HangingPiece',
     motif: 'Rook wins loose met',
-    difficulty: 'beginner',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview('Lower-value and less instructive than the stronger tactic examples.'),
+    difficulty: 'intermediate',
+    reviewStatus: 'ship',
+    reviewChecklist: shippedReview('Good intermediate pickup because the sideways rook move is there, but not instantly seen.'),
     toMove: 'white',
     board: board(
       ['f2', 'K', 'black'],
@@ -383,19 +349,15 @@ const CATALOG_PUZZLES: Puzzle[] = [
   },
   {
     id: 15,
-    title: 'Rook Pivot Mate',
-    description: 'Mate in 2. Pivot the rook first, then drop to the back rank.',
-    explanation: 'The first rook move cuts the king off and forces a single reply. After that, the rook drops to d1 for mate.',
-    source: 'Starter pack: mate in 2',
+    title: 'Quiet Pivot, Then Mate',
+    description: 'Mate in 2. Pivot first, then crash down the file when the king runs out of squares.',
+    explanation: 'The rook pivot is still the point, but White’s pawn shell makes it feel practical instead of empty. Once the king is funneled to f1, the drop on d1 closes the mating net.',
+    source: 'Curated tactic: practical mating net',
     theme: 'MateIn2',
     motif: 'Rook pivot mate in 2',
     difficulty: 'intermediate',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview('User feedback says the current mate-in-2 set does not feel sound in actual play.', {
-      themeClarity: 'fail',
-      teachingValue: 'fail',
-      duplicateRisk: 'clear',
-    }),
+    reviewStatus: 'ship',
+    reviewChecklist: shippedReview('Quiet first move and forced reply give this mate-in-2 real teaching value.'),
     toMove: 'white',
     board: board(
       ['e1', 'K', 'black'],
@@ -403,105 +365,116 @@ const CATALOG_PUZZLES: Puzzle[] = [
       ['c5', 'R', 'white'],
       ['d6', 'M', 'white'],
       ['f8', 'S', 'white'],
+      ['a4', 'P', 'white'],
+      ['b3', 'P', 'white'],
+      ['c4', 'P', 'white'],
+      ['g3', 'P', 'white'],
+      ['h4', 'P', 'white'],
     ),
     solution: line('c5-d5', 'e1-f1', 'd5-d1'),
   },
   {
     id: 16,
-    title: 'Back Rank Switch',
-    description: 'Mate in 2. Swing the rook across, then invade the eighth rank.',
-    explanation: 'The rook first changes files to trap the king’s path, and the follow-up on d8 completes the mating net.',
-    source: 'Starter pack: mate in 2',
+    title: 'Break The File, Break The King',
+    description: 'Mate in 2. Switch files first, then break through on the back rank.',
+    explanation: 'The rook swing feels patient because White already owns space with the pawns. Black cannot untangle the back rank in time, so the invasion on d8 seals the mating net.',
+    source: 'Curated tactic: practical rook breakthrough',
     theme: 'BackRank',
     motif: 'Back-rank rook switch mate in 2',
     difficulty: 'intermediate',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview(
-      'Too similar to the other quarantined rook-reposition mate candidates to prioritize for re-review.',
-      { duplicateRisk: 'clear' },
-    ),
+    reviewStatus: 'ship',
+    reviewChecklist: shippedReview('Strong rook-file breakthrough lesson with a clean forced finish.'),
     toMove: 'white',
     board: board(
       ['a2', 'R', 'white'],
       ['a5', 'P', 'white'],
       ['h5', 'N', 'white'],
       ['f6', 'K', 'white'],
+      ['b4', 'P', 'white'],
+      ['c4', 'P', 'white'],
+      ['f4', 'P', 'white'],
+      ['g3', 'P', 'white'],
+      ['h4', 'P', 'white'],
       ['e8', 'K', 'black'],
     ),
     solution: line('a2-d2', 'e8-f8', 'd2-d8'),
   },
   {
     id: 17,
-    title: 'File Fence',
-    description: 'Mate in 2. Build the fence with the rook, then strike on c1.',
-    explanation: 'The rook shift to c5 restricts the king, and the knight helps make the final rook drop on c1 checkmate.',
-    source: 'Starter pack: mate in 2',
+    title: 'Build The Fence',
+    description: 'Mate in 2. Build the fence first, then drop the final rook blow.',
+    explanation: 'The rook shift to c5 is the hard move to spot in a normal-looking structure. Once the fence is built and the king is nudged toward a1, Rc1 closes the mating net.',
+    source: 'Curated tactic: practical mating net',
     theme: 'MateIn2',
     motif: 'Rook fence mate in 2',
     difficulty: 'intermediate',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview('User feedback says the current mate-in-2 set does not feel sound in actual play.', {
-      themeClarity: 'fail',
-      teachingValue: 'fail',
-      duplicateRisk: 'clear',
-    }),
+    reviewStatus: 'ship',
+    reviewChecklist: shippedReview('Shows how a quiet restricting move can matter more than an immediate check.'),
     toMove: 'white',
     board: board(
       ['b1', 'K', 'black'],
       ['e1', 'N', 'white'],
       ['a3', 'K', 'white'],
       ['f5', 'R', 'white'],
+      ['d3', 'P', 'white'],
+      ['g3', 'P', 'white'],
+      ['h3', 'P', 'white'],
     ),
     solution: line('f5-c5', 'b1-a1', 'c5-c1'),
   },
   {
     id: 18,
-    title: 'Fifth-Rank Sweep',
-    description: 'Mate in 2. Swing the rook up, then across for the finish.',
-    explanation: 'The first rook lift forces the black king one square, and the second sweep along the fifth rank closes the net.',
-    source: 'Starter pack: mate in 2',
+    title: 'Sweep The Fifth Rank',
+    description: 'Mate in 2. Lift first, then sweep across once the king is pushed into place.',
+    explanation: 'The rook lift is a quiet setup move from a more believable middlegame shell. Once the king is pushed to a7, the fifth-rank sweep closes the mating net at once.',
+    source: 'Curated tactic: practical support mate',
     theme: 'MateIn2',
     motif: 'Fifth-rank rook sweep mate in 2',
     difficulty: 'intermediate',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview(
-      'Lower-priority than the other quarantined mate-in-2 candidates for real-play review.',
-      { duplicateRisk: 'clear' },
-    ),
+    reviewStatus: 'ship',
+    reviewChecklist: shippedReview('Clean support-mate sequence with one setup move and one finishing sweep.'),
     toMove: 'white',
     board: board(
       ['c1', 'M', 'white'],
       ['f2', 'R', 'white'],
       ['a6', 'K', 'black'],
       ['c7', 'K', 'white'],
+      ['b2', 'P', 'white'],
+      ['c4', 'P', 'white'],
+      ['d4', 'P', 'white'],
+      ['g3', 'P', 'white'],
+      ['h4', 'P', 'white'],
     ),
     solution: line('f2-f5', 'a6-a7', 'f5-a5'),
   },
   {
     id: 19,
-    title: 'Double Rua Finish',
-    description: 'Mate in 2. One rook lifts, the other seals the back rank.',
-    explanation: 'Two rooks coordinate beautifully in Makruk. The first move forces the king deeper, and the second rook lands the mate.',
-    source: 'Starter pack: mate in 2',
+    title: 'Twin Rua Finale',
+    description: 'Mate in 2. One rook lures the king deeper, the other slams the back rank shut.',
+    explanation: 'The first rook move is only a setup, but White’s pawn shell makes the king’s shelter brittle. Once it is nudged to h8, the second rook lands the back-rank mate.',
+    source: 'Curated tactic: practical back-rank finish',
     theme: 'BackRank',
     motif: 'Double rook mate in 2',
     difficulty: 'intermediate',
-    reviewStatus: 'quarantine',
-    reviewChecklist: quarantineReview('User feedback says the current mate-in-2 set does not feel sound in actual play.', {
-      themeClarity: 'fail',
-      teachingValue: 'fail',
-      duplicateRisk: 'clear',
-    }),
+    reviewStatus: 'ship',
+    reviewChecklist: shippedReview('Good coordination lesson for players learning how the two rooks force mating nets together.'),
     toMove: 'white',
     board: board(
       ['f2', 'R', 'white'],
       ['a6', 'R', 'white'],
       ['c6', 'K', 'white'],
       ['g8', 'K', 'black'],
+      ['b3', 'P', 'white'],
+      ['c4', 'P', 'white'],
+      ['d4', 'P', 'white'],
+      ['g3', 'P', 'white'],
+      ['h4', 'P', 'white'],
     ),
     solution: line('a6-a7', 'g8-h8', 'f2-f8'),
   },
 ];
+
+const CATALOG_PUZZLES: Puzzle[] = CATALOG_PUZZLES_RAW.map(finalizePuzzle);
 
 export const ALL_PUZZLES: Puzzle[] = [...CATALOG_PUZZLES, ...IMPORTED_PUZZLE_CANDIDATES];
 

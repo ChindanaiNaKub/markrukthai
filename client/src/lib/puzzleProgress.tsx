@@ -10,6 +10,9 @@ export interface PuzzleProgressRecord {
   puzzleId: number;
   lastPlayedAt: number;
   completedAt: number | null;
+  attempts: number;
+  successes: number;
+  failures: number;
 }
 
 interface PuzzleProgressContextValue {
@@ -18,6 +21,7 @@ interface PuzzleProgressContextValue {
   completedPuzzleSet: Set<number>;
   loading: boolean;
   recordPuzzleVisited: (puzzleId: number) => Promise<void>;
+  recordPuzzleFailed: (puzzleId: number) => Promise<void>;
   markPuzzleCompleted: (puzzleId: number) => Promise<void>;
 }
 
@@ -31,6 +35,9 @@ export interface PuzzleProgressSummary {
   completedCount: number;
   totalCount: number;
   percentComplete: number;
+  attemptCount: number;
+  successRate: number;
+  recommendedDifficultyScore: number;
   nextPuzzle: Puzzle | null;
   continuePuzzle: Puzzle | null;
   favoriteTheme: string | null;
@@ -65,6 +72,9 @@ function normalizePuzzleProgressRecords(records: PuzzleProgressRecord[]): Puzzle
     const completedAt = record.completedAt === null || record.completedAt === undefined
       ? null
       : Number(record.completedAt);
+    const attempts = Math.max(0, Number(record.attempts ?? 0));
+    const successes = Math.max(0, Number(record.successes ?? (completedAt ? 1 : 0)));
+    const failures = Math.max(0, Number(record.failures ?? 0));
     const existing = deduped.get(puzzleId);
 
     if (!existing) {
@@ -72,6 +82,9 @@ function normalizePuzzleProgressRecords(records: PuzzleProgressRecord[]): Puzzle
         puzzleId,
         lastPlayedAt: Number.isFinite(lastPlayedAt) && lastPlayedAt > 0 ? lastPlayedAt : 0,
         completedAt: Number.isFinite(completedAt ?? NaN) && (completedAt ?? 0) > 0 ? completedAt : null,
+        attempts,
+        successes,
+        failures,
       });
       continue;
     }
@@ -87,6 +100,9 @@ function normalizePuzzleProgressRecords(records: PuzzleProgressRecord[]): Puzzle
         : completedAt === null
           ? existing.completedAt
           : Math.max(existing.completedAt, completedAt),
+      attempts: existing.attempts + attempts,
+      successes: existing.successes + successes,
+      failures: existing.failures + failures,
     });
   }
 
@@ -137,6 +153,12 @@ function writeGuestPuzzleProgressRecords(records: PuzzleProgressRecord[]): void 
   );
 }
 
+function clearGuestPuzzleProgressRecords(): void {
+  localStorage.removeItem(GUEST_PUZZLE_PROGRESS_KEY);
+  localStorage.removeItem(GUEST_COMPLETED_PUZZLES_KEY);
+  localStorage.removeItem(LEGACY_COMPLETED_PUZZLES_KEY);
+}
+
 function readGuestPuzzleProgressRecords(): PuzzleProgressRecord[] {
   const guestRecords = readStoredPuzzleProgressRecords(GUEST_PUZZLE_PROGRESS_KEY);
   const guestIds = readStoredPuzzleIds(GUEST_COMPLETED_PUZZLES_KEY);
@@ -154,6 +176,9 @@ function readGuestPuzzleProgressRecords(): PuzzleProgressRecord[] {
       puzzleId,
       lastPlayedAt: migrationTimestamp,
       completedAt: migrationTimestamp,
+      attempts: 1,
+      successes: 1,
+      failures: 0,
     })),
   );
 
@@ -170,7 +195,10 @@ function recordsEqual(a: PuzzleProgressRecord[], b: PuzzleProgressRecord[]): boo
     const other = b[index];
     return record.puzzleId === other.puzzleId
       && record.lastPlayedAt === other.lastPlayedAt
-      && record.completedAt === other.completedAt;
+      && record.completedAt === other.completedAt
+      && record.attempts === other.attempts
+      && record.successes === other.successes
+      && record.failures === other.failures;
   });
 }
 
@@ -188,6 +216,9 @@ function recordPuzzleVisit(records: PuzzleProgressRecord[], puzzleId: number, ti
     puzzleId,
     lastPlayedAt: timestamp,
     completedAt: existing?.completedAt ?? null,
+    attempts: 0,
+    successes: 0,
+    failures: 0,
   }]);
 }
 
@@ -196,6 +227,21 @@ function recordPuzzleCompletion(records: PuzzleProgressRecord[], puzzleId: numbe
     puzzleId,
     lastPlayedAt: timestamp,
     completedAt: timestamp,
+    attempts: 1,
+    successes: 1,
+    failures: 0,
+  }]);
+}
+
+function recordPuzzleFailure(records: PuzzleProgressRecord[], puzzleId: number, timestamp = getNowSeconds()): PuzzleProgressRecord[] {
+  const existing = records.find(record => record.puzzleId === puzzleId);
+  return mergePuzzleProgressRecords(records, [{
+    puzzleId,
+    lastPlayedAt: timestamp,
+    completedAt: existing?.completedAt ?? null,
+    attempts: 1,
+    successes: 0,
+    failures: 1,
   }]);
 }
 
@@ -211,6 +257,9 @@ function parseRemoteProgress(data: any): PuzzleProgressRecord[] {
         puzzleId: Number(puzzleId),
         lastPlayedAt: timestamp,
         completedAt: timestamp,
+        attempts: 1,
+        successes: 1,
+        failures: 0,
       })),
     );
   }
@@ -262,6 +311,7 @@ export function PuzzleProgressProvider({ children }: { children: ReactNode }) {
           });
           const syncData = await readJsonOrThrow(syncResponse);
           mergedRecords = parseRemoteProgress(syncData);
+          clearGuestPuzzleProgressRecords();
         }
 
         if (!cancelled) {
@@ -341,6 +391,35 @@ export function PuzzleProgressProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  const recordPuzzleFailed = useCallback(async (puzzleId: number) => {
+    const normalizedPuzzleId = Number(puzzleId);
+    if (!Number.isInteger(normalizedPuzzleId) || normalizedPuzzleId <= 0) return;
+
+    const nextRecords = recordPuzzleFailure(progressRecordsRef.current, normalizedPuzzleId);
+    setProgressRecords(nextRecords);
+    progressRecordsRef.current = nextRecords;
+
+    if (!user) {
+      writeGuestPuzzleProgressRecords(nextRecords);
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/puzzle-progress/attempt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ puzzleId: normalizedPuzzleId, succeeded: false }),
+      });
+      const data = await readJsonOrThrow(response);
+      const remoteRecords = parseRemoteProgress(data);
+      setProgressRecords(remoteRecords);
+      progressRecordsRef.current = remoteRecords;
+    } catch {
+      setProgressRecords(nextRecords);
+      progressRecordsRef.current = nextRecords;
+    }
+  }, [user]);
+
   const completedPuzzleIds = useMemo(() => getCompletedPuzzleIds(progressRecords), [progressRecords]);
 
   const value = useMemo<PuzzleProgressContextValue>(() => ({
@@ -349,8 +428,9 @@ export function PuzzleProgressProvider({ children }: { children: ReactNode }) {
     completedPuzzleSet: new Set(completedPuzzleIds),
     loading,
     recordPuzzleVisited,
+    recordPuzzleFailed,
     markPuzzleCompleted,
-  }), [completedPuzzleIds, loading, markPuzzleCompleted, progressRecords, recordPuzzleVisited]);
+  }), [completedPuzzleIds, loading, markPuzzleCompleted, progressRecords, recordPuzzleFailed, recordPuzzleVisited]);
 
   return (
     <PuzzleProgressContext.Provider value={value}>
@@ -370,6 +450,7 @@ export function usePuzzleProgress() {
 export function getPuzzleProgressSummary(progressRecords: PuzzleProgressRecord[]): PuzzleProgressSummary {
   const normalizedRecords = normalizePuzzleProgressRecords(progressRecords);
   const shippedPuzzlesById = new Map(PUZZLES.map(puzzle => [puzzle.id, puzzle]));
+  const progressByPuzzleId = new Map(normalizedRecords.map(record => [record.puzzleId, record]));
   const activity = normalizedRecords
     .map((record) => {
       const puzzle = shippedPuzzlesById.get(record.puzzleId);
@@ -387,7 +468,39 @@ export function getPuzzleProgressSummary(progressRecords: PuzzleProgressRecord[]
   const completedCount = completedActivity.length;
   const totalCount = PUZZLES.length;
   const percentComplete = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-  const nextPuzzle = PUZZLES.find(puzzle => !completedSet.has(puzzle.id)) ?? PUZZLES[0] ?? null;
+  const attemptCount = normalizedRecords.reduce((total, record) => total + record.attempts, 0);
+  const successCount = normalizedRecords.reduce((total, record) => total + record.successes, 0);
+  const successRate = attemptCount > 0 ? Math.round((successCount / attemptCount) * 100) : 0;
+  const weightedDifficulty = attemptCount > 0
+    ? Math.round(
+      normalizedRecords.reduce((total, record) => {
+        const puzzle = shippedPuzzlesById.get(record.puzzleId);
+        return total + (puzzle ? puzzle.difficultyScore * record.attempts : 0);
+      }, 0) / Math.max(1, attemptCount),
+    )
+    : 980;
+  const recommendedDifficultyScore = Math.max(
+    650,
+    Math.min(
+      2200,
+      weightedDifficulty + (successRate >= 80 ? 120 : successRate <= 45 && attemptCount > 0 ? -120 : 0),
+    ),
+  );
+  const nextPuzzle = [...PUZZLES]
+    .sort((left, right) => {
+      const leftRecord = progressByPuzzleId.get(left.id);
+      const rightRecord = progressByPuzzleId.get(right.id);
+      const leftCompleted = completedSet.has(left.id);
+      const rightCompleted = completedSet.has(right.id);
+      if (leftCompleted !== rightCompleted) return leftCompleted ? 1 : -1;
+
+      const leftContinue = leftRecord && leftRecord.completedAt === null && leftRecord.attempts > 0 ? -80 : 0;
+      const rightContinue = rightRecord && rightRecord.completedAt === null && rightRecord.attempts > 0 ? -80 : 0;
+      const leftScore = Math.abs(left.difficultyScore - recommendedDifficultyScore) + leftContinue;
+      const rightScore = Math.abs(right.difficultyScore - recommendedDifficultyScore) + rightContinue;
+      if (leftScore !== rightScore) return leftScore - rightScore;
+      return left.id - right.id;
+    })[0] ?? null;
   const lastPlayed = activity[0] ?? null;
   const continuePuzzle = lastPlayed && lastPlayed.completedAt === null
     ? lastPlayed.puzzle
@@ -417,6 +530,9 @@ export function getPuzzleProgressSummary(progressRecords: PuzzleProgressRecord[]
     completedCount,
     totalCount,
     percentComplete,
+    attemptCount,
+    successRate,
+    recommendedDifficultyScore,
     nextPuzzle,
     continuePuzzle,
     favoriteTheme,
