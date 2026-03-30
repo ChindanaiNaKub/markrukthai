@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createInitialGameState } from '../../../shared/engine';
 import { getEngineSearchTimeoutMs, normalizeEngineFen } from '../fairyStockfishBinary';
-import { getReviewMovetime, resolveBotMoveCandidate } from '../engineGateway';
+import { getBotRequestTimeoutMs, getReviewMovetime, resolveBotMoveCandidate } from '../engineGateway';
 
 describe('normalizeEngineFen', () => {
   it('expands compact board-and-turn positions into full engine fen', () => {
@@ -19,13 +19,19 @@ describe('normalizeEngineFen', () => {
       variant: 'makruk',
       position: '8/8/8/8/8/8/8/8 w',
       search: { movetimeMs: 400 },
-    }, 'bot')).toBe(2000);
+    }, 'bot')).toBe(900);
 
     expect(getEngineSearchTimeoutMs({
       variant: 'makruk',
       position: '8/8/8/8/8/8/8/8 w',
       search: { movetimeMs: 1200 },
     }, 'analysis')).toBe(6200);
+  });
+
+  it('keeps bot service request timeouts capped tightly by level', () => {
+    expect(getBotRequestTimeoutMs(1)).toBe(900);
+    expect(getBotRequestTimeoutMs(5)).toBe(1150);
+    expect(getBotRequestTimeoutMs(10)).toBe(1650);
   });
 
   it('scales review movetime down for long games while preserving short-game quality', () => {
