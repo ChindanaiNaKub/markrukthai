@@ -27,6 +27,9 @@ const {
     completedCount: 2,
     totalCount: 7,
     percentComplete: 29,
+    attemptCount: 4,
+    successRate: 50,
+    recommendedDifficultyScore: 1120,
     favoriteTheme: 'HangingPiece',
     continuePuzzle: {
       id: 5001,

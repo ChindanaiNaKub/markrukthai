@@ -1,0 +1,137 @@
+import { createInitialBoard } from './engine';
+import type { Board, Move, PieceColor } from './types';
+import type { PuzzleGenerationSource } from './puzzleGeneration';
+
+interface ParsedHeaders {
+  id?: string;
+  source?: string;
+  result?: string;
+  resultReason?: string;
+  moveCount?: number;
+  startingPlyNumber?: number;
+  startingTurn?: PieceColor;
+}
+
+function parseMoveToken(token: string): Move | null {
+  const match = token.match(/^([a-h][1-8])[-x]([a-h][1-8])$/i);
+  if (!match) return null;
+
+  const from = match[1].toLowerCase();
+  const to = match[2].toLowerCase();
+
+  return {
+    from: {
+      col: from.charCodeAt(0) - 97,
+      row: Number.parseInt(from[1], 10) - 1,
+    },
+    to: {
+      col: to.charCodeAt(0) - 97,
+      row: Number.parseInt(to[1], 10) - 1,
+    },
+  };
+}
+
+function buildSource(headers: ParsedHeaders, moves: Move[], index: number): PuzzleGenerationSource {
+  return {
+    id: headers.id ?? `pgnlike-${index + 1}`,
+    source: headers.source ?? `Imported PGN-like game ${index + 1}`,
+    moves,
+    initialBoard: createInitialBoard(),
+    startingTurn: headers.startingTurn ?? 'white',
+    moveCount: headers.moveCount ?? moves.length,
+    result: headers.result,
+    resultReason: headers.resultReason,
+    startingPlyNumber: headers.startingPlyNumber ?? 1,
+  };
+}
+
+export function parsePgnLikePuzzleSources(raw: string): PuzzleGenerationSource[] {
+  const sources: PuzzleGenerationSource[] = [];
+  const lines = raw.split(/\r?\n/);
+
+  let headers: ParsedHeaders = {};
+  let moveTokens: string[] = [];
+
+  const flush = () => {
+    const parsedMoves = moveTokens
+      .map(parseMoveToken)
+      .filter((move): move is Move => move !== null);
+
+    if (parsedMoves.length > 0) {
+      sources.push(buildSource(headers, parsedMoves, sources.length));
+    }
+
+    headers = {};
+    moveTokens = [];
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      if (moveTokens.length > 0) {
+        flush();
+      }
+      continue;
+    }
+
+    const headerMatch = trimmed.match(/^\[([A-Za-z]+)\s+"([^"]+)"\]$/);
+    if (headerMatch) {
+      const [, key, value] = headerMatch;
+      switch (key.toLowerCase()) {
+        case 'game':
+        case 'id':
+          headers.id = value;
+          break;
+        case 'source':
+          headers.source = value;
+          break;
+        case 'result':
+          headers.result = value;
+          break;
+        case 'resultreason':
+          headers.resultReason = value;
+          break;
+        case 'movecount':
+          headers.moveCount = Number.parseInt(value, 10);
+          break;
+        case 'startingply':
+          headers.startingPlyNumber = Number.parseInt(value, 10);
+          break;
+        case 'turn':
+          headers.startingTurn = value === 'black' ? 'black' : 'white';
+          break;
+      }
+      continue;
+    }
+
+    const tokens = trimmed
+      .replace(/\{[^}]*\}/g, ' ')
+      .split(/\s+/)
+      .filter(token => token.length > 0)
+      .filter(token => !/^\d+\.$/.test(token))
+      .filter(token => !/^(1-0|0-1|1\/2-1\/2|\*)$/i.test(token));
+
+    moveTokens.push(...tokens);
+  }
+
+  if (moveTokens.length > 0) {
+    flush();
+  }
+
+  return sources;
+}
+
+export function createSeedPuzzleSource(
+  source: Omit<PuzzleGenerationSource, 'initialBoard' | 'startingTurn'> & {
+    initialBoard?: Board;
+    startingTurn?: PieceColor;
+  },
+): PuzzleGenerationSource {
+  return {
+    ...source,
+    initialBoard: source.initialBoard ?? createInitialBoard(),
+    startingTurn: source.startingTurn ?? 'white',
+    startingPlyNumber: source.startingPlyNumber ?? 1,
+  };
+}

@@ -8,7 +8,7 @@ import path from 'path';
 import rateLimit from 'express-rate-limit';
 import { GameManager } from './gameManager';
 import { MatchmakingQueue } from './matchmaking';
-import { initDatabase, saveCompletedGame, getRecentGames, getGame as getDbGame, getStats, getGameCount, getLeaderboard, getLeaderboardCount, saveFeedback, getFeedbackCount, getFeedbackForAdmin, moderateFeedback, updateUsername, getCompletedPuzzleIdsForUser, getPuzzleProgressForUser, markPuzzlePlayed, markPuzzleCompleted, mergeCompletedPuzzles, mergePuzzleProgress, type PuzzleProgressRecord, type RecentGamesFilter } from './database';
+import { initDatabase, saveCompletedGame, getRecentGames, getGame as getDbGame, getStats, getGameCount, getLeaderboard, getLeaderboardCount, saveFeedback, getFeedbackCount, getFeedbackForAdmin, moderateFeedback, updateUsername, getCompletedPuzzleIdsForUser, getPuzzleProgressForUser, markPuzzlePlayed, markPuzzleCompleted, markPuzzleAttempt, mergeCompletedPuzzles, mergePuzzleProgress, type PuzzleProgressRecord, type RecentGamesFilter } from './database';
 import { ServerToClientEvents, ClientToServerEvents, GameRoom } from '../../shared/types';
 import { getIndexablePaths, getPublicSeoRoute } from '../../shared/seo';
 import { logError, logInfo, logWarn } from './logger';
@@ -471,6 +471,24 @@ app.post('/api/puzzle-progress/complete', async (req, res) => {
   res.json({ ok: true, completedPuzzleIds, progressRecords });
 });
 
+app.post('/api/puzzle-progress/attempt', async (req, res) => {
+  const user = await requireUser(req, res);
+  if (!user) return;
+
+  const puzzleId = Number(req.body?.puzzleId);
+  const succeeded = Boolean(req.body?.succeeded);
+  if (!Number.isInteger(puzzleId) || puzzleId <= 0) {
+    res.status(400).json({ error: 'Valid puzzleId is required.' });
+    return;
+  }
+
+  const progressRecords = await markPuzzleAttempt(user.id, puzzleId, succeeded);
+  const completedPuzzleIds = progressRecords
+    .filter(record => record.completedAt !== null)
+    .map(record => record.puzzleId);
+  res.json({ ok: true, completedPuzzleIds, progressRecords });
+});
+
 app.post('/api/puzzle-progress/sync', async (req, res) => {
   const user = await requireUser(req, res);
   if (!user) return;
@@ -492,6 +510,9 @@ app.post('/api/puzzle-progress/sync', async (req, res) => {
         completedAt: value?.completedAt === null || value?.completedAt === undefined
           ? null
           : Number(value.completedAt),
+        attempts: Number(value?.attempts ?? 0),
+        successes: Number(value?.successes ?? 0),
+        failures: Number(value?.failures ?? 0),
       })),
     );
   } else {

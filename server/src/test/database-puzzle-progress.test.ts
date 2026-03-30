@@ -67,6 +67,9 @@ describe('database puzzle progress persistence', () => {
     expect(progress[0]).toMatchObject({
       puzzleId: 5001,
       completedAt: null,
+      attempts: 0,
+      successes: 0,
+      failures: 0,
     });
     expect(progress[0].lastPlayedAt).toBeGreaterThan(0);
 
@@ -74,15 +77,46 @@ describe('database puzzle progress persistence', () => {
     expect(progress[0]?.puzzleId).toBe(5001);
     expect(progress[0]?.completedAt).not.toBeNull();
     expect(progress[0]?.lastPlayedAt).toBeGreaterThan(0);
+    expect(progress[0]).toMatchObject({
+      attempts: 1,
+      successes: 1,
+      failures: 0,
+    });
 
     const merged = await database.mergePuzzleProgress('player-progress', [
-      { puzzleId: 12, lastPlayedAt: 120, completedAt: null },
-      { puzzleId: 10, lastPlayedAt: 150, completedAt: 150 },
-      { puzzleId: 12, lastPlayedAt: 200, completedAt: null },
+      { puzzleId: 12, lastPlayedAt: 120, completedAt: null, attempts: 1, successes: 0, failures: 1 },
+      { puzzleId: 10, lastPlayedAt: 150, completedAt: 150, attempts: 1, successes: 1, failures: 0 },
+      { puzzleId: 12, lastPlayedAt: 200, completedAt: null, attempts: 1, successes: 0, failures: 1 },
     ]);
 
     expect(merged.map((record) => record.puzzleId)).toEqual([5001, 12, 10]);
     expect(await database.getCompletedPuzzleIdsForUser('player-progress')).toEqual([10, 5001]);
+    expect(merged.find((record) => record.puzzleId === 12)).toMatchObject({
+      attempts: 2,
+      successes: 0,
+      failures: 2,
+    });
+  });
+
+  it('tracks failed puzzle attempts without marking completion', async () => {
+    const database = await import('../database');
+
+    await database.initDatabase();
+    await database.upsertUserByEmail({
+      id: 'player-attempts',
+      email: 'attempts@example.com',
+      role: 'user',
+    });
+
+    const progress = await database.markPuzzleAttempt('player-attempts', 77, false);
+    expect(progress).toHaveLength(1);
+    expect(progress[0]).toMatchObject({
+      puzzleId: 77,
+      completedAt: null,
+      attempts: 1,
+      successes: 0,
+      failures: 1,
+    });
   });
 
   it('keeps progress isolated between users', async () => {

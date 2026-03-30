@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ALL_PUZZLES, PUZZLES, QUARANTINED_PUZZLES, isPuzzleReadyToShip, type Puzzle } from '@shared/puzzles';
+import { finalizePuzzle } from '@shared/puzzleCatalog';
 import { IMPORTED_PUZZLE_CANDIDATES, createImportedPuzzleCandidate } from '@shared/puzzleImportQueue';
 import { validatePuzzle, validatePuzzles } from '@shared/puzzleValidation';
 import { createGameStateFromPuzzle, getForcingMoves } from '@shared/puzzleSolver';
@@ -42,6 +43,12 @@ function line(...steps: string[]): { from: Position; to: Position }[] {
   });
 }
 
+function createTestPuzzle(
+  puzzle: Omit<Puzzle, 'origin' | 'sourceGameId' | 'sourcePly' | 'tags' | 'difficultyScore'>,
+): Puzzle {
+  return finalizePuzzle(puzzle);
+}
+
 describe('puzzleValidation', () => {
   it('accepts the built-in puzzle set', () => {
     const results = validatePuzzles(PUZZLES);
@@ -50,21 +57,49 @@ describe('puzzleValidation', () => {
   });
 
   it('ships only the curated subset and keeps queued imports quarantined', () => {
-    expect(PUZZLES.map(puzzle => puzzle.id)).toEqual([1, 6, 8, 10, 12, 13, 5001]);
-    expect(IMPORTED_PUZZLE_CANDIDATES.map(puzzle => puzzle.id)).toEqual([1001, 1002, 1003, 1004, 1005, 5001]);
-    expect(QUARANTINED_PUZZLES.map(puzzle => puzzle.id)).toEqual([
-      2, 3, 4, 5, 7, 9, 11, 14, 15, 16, 17, 18, 19, 1001, 1002, 1003, 1004, 1005,
+    expect(PUZZLES.map(puzzle => puzzle.id)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19,
+      1001, 1002, 5001, 6001, 6002, 6006, 6007,
     ]);
-    expect(PUZZLES).toHaveLength(7);
-    expect(QUARANTINED_PUZZLES).toHaveLength(18);
-    expect(ALL_PUZZLES).toHaveLength(25);
-    expect(IMPORTED_PUZZLE_CANDIDATES).toHaveLength(6);
+    expect(IMPORTED_PUZZLE_CANDIDATES.map(puzzle => puzzle.id)).toEqual([
+      1001, 1002, 5001, 6001, 6002, 6006, 6007,
+    ]);
+    expect(QUARANTINED_PUZZLES).toEqual([]);
+    expect(PUZZLES).toHaveLength(24);
+    expect(QUARANTINED_PUZZLES).toHaveLength(0);
+    expect(ALL_PUZZLES).toHaveLength(24);
+    expect(IMPORTED_PUZZLE_CANDIDATES).toHaveLength(7);
     expect(PUZZLES.every(puzzle => puzzle.reviewStatus === 'ship')).toBe(true);
     expect(PUZZLES.every(isPuzzleReadyToShip)).toBe(true);
-    expect(QUARANTINED_PUZZLES.every(puzzle => puzzle.reviewStatus === 'quarantine')).toBe(true);
-    expect(IMPORTED_PUZZLE_CANDIDATES.filter(puzzle => puzzle.reviewStatus === 'quarantine').every(puzzle => puzzle.reviewChecklist.themeClarity === 'unreviewed')).toBe(true);
-    expect(IMPORTED_PUZZLE_CANDIDATES.filter(puzzle => puzzle.reviewStatus === 'ship').map(puzzle => puzzle.id)).toEqual([5001]);
+    expect(IMPORTED_PUZZLE_CANDIDATES.filter(puzzle => puzzle.reviewStatus === 'quarantine')).toEqual([]);
+    expect(IMPORTED_PUZZLE_CANDIDATES.filter(puzzle => puzzle.reviewStatus === 'ship').map(puzzle => puzzle.id)).toEqual([
+      1001, 1002, 5001, 6001, 6002, 6006, 6007,
+    ]);
     expect(ALL_PUZZLES.every(puzzle => puzzle.motif.trim().length > 0)).toBe(true);
+  });
+
+  it('keeps the advanced tier tactical and materially focused', () => {
+    const advancedPuzzles = PUZZLES.filter(puzzle => puzzle.difficulty === 'advanced');
+
+    expect(advancedPuzzles.map(puzzle => puzzle.id)).toEqual([5001, 6001, 6002, 6006, 6007]);
+    expect(advancedPuzzles.every(puzzle => puzzle.solution.length >= 3)).toBe(true);
+    expect(advancedPuzzles.every(puzzle => !['MateIn1', 'MateIn2', 'MateIn3', 'BackRank', 'SupportMate', 'Checkmate'].includes(puzzle.theme))).toBe(true);
+    expect(advancedPuzzles.every(puzzle => {
+      const firstMove = puzzle.solution[0];
+      return firstMove ? puzzle.board[firstMove.to.row]?.[firstMove.to.col] === null : false;
+    })).toBe(true);
+    expect(advancedPuzzles.every(puzzle =>
+      puzzle.board.flat().filter(piece => piece?.type === 'P').length >= 6
+    )).toBe(true);
+    expect(advancedPuzzles.every(puzzle =>
+      puzzle.board.flat().filter(Boolean).length >= 14
+    )).toBe(true);
+    expect(advancedPuzzles.every(puzzle =>
+      puzzle.tags.some(tag => ['fork', 'pin', 'trap', 'double-attack', 'quiet-first-move'].includes(tag))
+        || puzzle.title.toLowerCase().includes('quiet')
+    )).toBe(true);
+    expect(advancedPuzzles.every(puzzle => puzzle.tags.includes('middlegame'))).toBe(true);
+    expect(advancedPuzzles.filter(puzzle => ['Fork', 'Pin', 'DoubleAttack', 'TrappedPiece', 'HangingPiece', 'Tactic'].includes(puzzle.theme)).length).toBeGreaterThanOrEqual(Math.ceil(advancedPuzzles.length * 0.7));
   });
 
   it('defaults imported puzzle candidates to quarantine', () => {
@@ -121,7 +156,7 @@ describe('puzzleValidation', () => {
     board[6][2] = p('R', 'white');
     board[6][3] = p('R', 'white');
 
-    const puzzle: Puzzle = {
+    const puzzle = createTestPuzzle({
       id: 999,
       title: 'Ambiguous Double Rua',
       description: 'Two rooks can both mate, so this should not be publishable.',
@@ -140,7 +175,7 @@ describe('puzzleValidation', () => {
       toMove: 'white',
       board,
       solution: [{ from: { row: 6, col: 2 }, to: { row: 7, col: 2 } }],
-    };
+    });
 
     const result = validatePuzzle(puzzle);
 
@@ -166,7 +201,7 @@ describe('puzzleValidation', () => {
     board[6][4] = p('R', 'white');
     board[7][4] = p('K', 'black');
 
-    const puzzle: Puzzle = {
+    const puzzle = createTestPuzzle({
       id: 1000,
       title: 'Illegal King Capture',
       description: 'This puzzle line incorrectly ends by taking the king directly.',
@@ -185,7 +220,7 @@ describe('puzzleValidation', () => {
       toMove: 'white',
       board,
       solution: [{ from: { row: 6, col: 4 }, to: { row: 7, col: 4 } }],
-    };
+    });
 
     const result = validatePuzzle(puzzle);
     const forcingMoves = getForcingMoves(createGameStateFromPuzzle(puzzle), puzzle);
@@ -201,7 +236,7 @@ describe('puzzleValidation', () => {
     board[1][2] = p('M', 'white');
     board[2][4] = p('M', 'white');
 
-    const puzzle: Puzzle = {
+    const puzzle = createTestPuzzle({
       id: 1001,
       title: 'Broken Double Met Mate',
       description: 'This should be rejected because Black is already in check before White moves.',
@@ -220,7 +255,7 @@ describe('puzzleValidation', () => {
       toMove: 'white',
       board,
       solution: [{ from: { row: 2, col: 4 }, to: { row: 1, col: 3 } }],
-    };
+    });
 
     const result = validatePuzzle(puzzle);
 
@@ -240,7 +275,7 @@ describe('puzzleValidation', () => {
   });
 
   it('rejects tactical imports whose recorded target can escape on another defender reply', () => {
-    const puzzle: Puzzle = {
+    const puzzle = createTestPuzzle({
       id: 5000,
       title: 'Real-Game Fork (8eb070e4 @ ply 14)',
       description: 'Win material in 2. Start with the fork that attacks the king and the rook.',
@@ -287,7 +322,7 @@ describe('puzzleValidation', () => {
         ['h8', 'R', 'black'],
       ),
       solution: line('d4-b3', 'd2-c1', 'b3-a1'),
-    };
+    });
 
     const result = validatePuzzle(puzzle);
 
@@ -336,7 +371,7 @@ describe('puzzleValidation', () => {
   });
 
   it('rejects tactical puzzles whose copy does not explain the material win', () => {
-    const basePuzzle = PUZZLES.find(candidate => candidate.id === 10);
+    const basePuzzle = PUZZLES.find(candidate => candidate.id === 12);
     expect(basePuzzle).toBeDefined();
 
     const puzzle: Puzzle = {

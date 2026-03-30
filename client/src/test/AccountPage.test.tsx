@@ -29,6 +29,9 @@ const { navigateMock, logoutMock, updateProfileMock, authState, puzzleProgressSu
     completedCount: 3,
     totalCount: 7,
     percentComplete: 43,
+    attemptCount: 6,
+    successRate: 67,
+    recommendedDifficultyScore: 1180,
     favoriteTheme: 'HangingPiece',
     continuePuzzle: {
       id: 5001,

@@ -167,11 +167,20 @@ async function runSchemaMigration() {
   await ensureColumn('games', 'white_rating_after', 'INTEGER');
   await ensureColumn('games', 'black_rating_after', 'INTEGER');
   await ensureColumn('puzzle_progress', 'last_played_at', 'INTEGER');
+  await ensureColumn('puzzle_progress', 'attempts', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn('puzzle_progress', 'successes', 'INTEGER NOT NULL DEFAULT 0');
+  await ensureColumn('puzzle_progress', 'failures', 'INTEGER NOT NULL DEFAULT 0');
 
   await db.execute(`
     UPDATE puzzle_progress
     SET last_played_at = COALESCE(last_played_at, completed_at, unixepoch())
     WHERE last_played_at IS NULL
+  `);
+  await db.execute(`
+    UPDATE puzzle_progress
+    SET attempts = COALESCE(attempts, 0),
+        successes = COALESCE(successes, CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END),
+        failures = COALESCE(failures, 0)
   `);
 }
 
@@ -246,6 +255,9 @@ export interface PuzzleProgressRecord {
   puzzleId: number;
   lastPlayedAt: number;
   completedAt: number | null;
+  attempts: number;
+  successes: number;
+  failures: number;
 }
 
 function rowToAuthUser(row: Row): AuthUser {
@@ -963,6 +975,9 @@ function rowToPuzzleProgressRecord(row: Row): PuzzleProgressRecord {
     puzzleId: Number(row.puzzle_id),
     lastPlayedAt: Number(row.last_played_at ?? row.completed_at ?? 0),
     completedAt: row.completed_at === null || row.completed_at === undefined ? null : Number(row.completed_at),
+    attempts: Number(row.attempts ?? 0),
+    successes: Number(row.successes ?? (row.completed_at === null || row.completed_at === undefined ? 0 : 1)),
+    failures: Number(row.failures ?? 0),
   };
 }
 
@@ -977,6 +992,9 @@ function normalizePuzzleProgressRecords(records: PuzzleProgressRecord[]): Puzzle
     const completedAt = record.completedAt === null || record.completedAt === undefined
       ? null
       : Number(record.completedAt);
+    const attempts = Math.max(0, Number(record.attempts ?? 0));
+    const successes = Math.max(0, Number(record.successes ?? (completedAt ? 1 : 0)));
+    const failures = Math.max(0, Number(record.failures ?? 0));
     const existing = deduped.get(puzzleId);
 
     if (!existing) {
@@ -984,22 +1002,28 @@ function normalizePuzzleProgressRecords(records: PuzzleProgressRecord[]): Puzzle
         puzzleId,
         lastPlayedAt: Number.isFinite(lastPlayedAt) && lastPlayedAt > 0 ? lastPlayedAt : 0,
         completedAt: Number.isFinite(completedAt ?? NaN) && (completedAt ?? 0) > 0 ? completedAt : null,
+        attempts,
+        successes,
+        failures,
       });
       continue;
     }
 
-    deduped.set(puzzleId, {
-      puzzleId,
-      lastPlayedAt: Math.max(
-        existing.lastPlayedAt,
-        Number.isFinite(lastPlayedAt) && lastPlayedAt > 0 ? lastPlayedAt : 0,
+      deduped.set(puzzleId, {
+        puzzleId,
+        lastPlayedAt: Math.max(
+          existing.lastPlayedAt,
+          Number.isFinite(lastPlayedAt) && lastPlayedAt > 0 ? lastPlayedAt : 0,
       ),
-      completedAt: existing.completedAt === null
-        ? (Number.isFinite(completedAt ?? NaN) && (completedAt ?? 0) > 0 ? completedAt : null)
-        : completedAt === null
-          ? existing.completedAt
-          : Math.max(existing.completedAt, completedAt),
-    });
+        completedAt: existing.completedAt === null
+          ? (Number.isFinite(completedAt ?? NaN) && (completedAt ?? 0) > 0 ? completedAt : null)
+          : completedAt === null
+            ? existing.completedAt
+            : Math.max(existing.completedAt, completedAt),
+        attempts: existing.attempts + attempts,
+        successes: existing.successes + successes,
+        failures: existing.failures + failures,
+      });
   }
 
   return Array.from(deduped.values()).sort((a, b) => {
@@ -1012,7 +1036,7 @@ export async function getPuzzleProgressForUser(userId: string): Promise<PuzzlePr
   try {
     const result = await db.execute({
       sql: `
-        SELECT puzzle_id, last_played_at, completed_at
+        SELECT puzzle_id, last_played_at, completed_at, attempts, successes, failures
         FROM puzzle_progress
         WHERE user_id = ?
         ORDER BY last_played_at DESC, puzzle_id ASC
@@ -1045,8 +1069,8 @@ export async function markPuzzlePlayed(userId: string, puzzleId: number): Promis
   try {
     await db.execute({
       sql: `
-        INSERT INTO puzzle_progress (user_id, puzzle_id, last_played_at, completed_at)
-        VALUES (?, ?, unixepoch(), NULL)
+        INSERT INTO puzzle_progress (user_id, puzzle_id, last_played_at, completed_at, attempts, successes, failures)
+        VALUES (?, ?, unixepoch(), NULL, 0, 0, 0)
         ON CONFLICT(user_id, puzzle_id) DO UPDATE SET
           last_played_at = unixepoch()
       `,
@@ -1064,11 +1088,13 @@ export async function markPuzzleCompleted(userId: string, puzzleId: number): Pro
   try {
     await db.execute({
       sql: `
-        INSERT INTO puzzle_progress (user_id, puzzle_id, last_played_at, completed_at)
-        VALUES (?, ?, unixepoch(), unixepoch())
+        INSERT INTO puzzle_progress (user_id, puzzle_id, last_played_at, completed_at, attempts, successes, failures)
+        VALUES (?, ?, unixepoch(), unixepoch(), 1, 1, 0)
         ON CONFLICT(user_id, puzzle_id) DO UPDATE SET
           last_played_at = unixepoch(),
-          completed_at = unixepoch()
+          completed_at = unixepoch(),
+          attempts = COALESCE(puzzle_progress.attempts, 0) + 1,
+          successes = COALESCE(puzzle_progress.successes, 0) + 1
       `,
       args: [userId, puzzleId],
     });
@@ -1076,6 +1102,31 @@ export async function markPuzzleCompleted(userId: string, puzzleId: number): Pro
     return await getPuzzleProgressForUser(userId);
   } catch (err) {
     logError('database_mark_puzzle_completed_failed', err, { userId, puzzleId });
+    return await getPuzzleProgressForUser(userId);
+  }
+}
+
+export async function markPuzzleAttempt(userId: string, puzzleId: number, succeeded: boolean): Promise<PuzzleProgressRecord[]> {
+  if (succeeded) {
+    return await markPuzzleCompleted(userId, puzzleId);
+  }
+
+  try {
+    await db.execute({
+      sql: `
+        INSERT INTO puzzle_progress (user_id, puzzle_id, last_played_at, completed_at, attempts, successes, failures)
+        VALUES (?, ?, unixepoch(), NULL, 1, 0, 1)
+        ON CONFLICT(user_id, puzzle_id) DO UPDATE SET
+          last_played_at = unixepoch(),
+          attempts = COALESCE(puzzle_progress.attempts, 0) + 1,
+          failures = COALESCE(puzzle_progress.failures, 0) + 1
+      `,
+      args: [userId, puzzleId],
+    });
+
+    return await getPuzzleProgressForUser(userId);
+  } catch (err) {
+    logError('database_mark_puzzle_attempt_failed', err, { userId, puzzleId, succeeded });
     return await getPuzzleProgressForUser(userId);
   }
 }
@@ -1090,8 +1141,8 @@ export async function mergePuzzleProgress(userId: string, records: PuzzleProgres
     for (const record of normalizedRecords) {
       await db.execute({
         sql: `
-          INSERT INTO puzzle_progress (user_id, puzzle_id, last_played_at, completed_at)
-          VALUES (?, ?, ?, ?)
+          INSERT INTO puzzle_progress (user_id, puzzle_id, last_played_at, completed_at, attempts, successes, failures)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(user_id, puzzle_id) DO UPDATE SET
             last_played_at = CASE
               WHEN excluded.last_played_at > COALESCE(puzzle_progress.last_played_at, 0)
@@ -1103,9 +1154,20 @@ export async function mergePuzzleProgress(userId: string, records: PuzzleProgres
               WHEN puzzle_progress.completed_at IS NULL THEN excluded.completed_at
               WHEN excluded.completed_at > puzzle_progress.completed_at THEN excluded.completed_at
               ELSE puzzle_progress.completed_at
-            END
+            END,
+            attempts = COALESCE(puzzle_progress.attempts, 0) + COALESCE(excluded.attempts, 0),
+            successes = COALESCE(puzzle_progress.successes, 0) + COALESCE(excluded.successes, 0),
+            failures = COALESCE(puzzle_progress.failures, 0) + COALESCE(excluded.failures, 0)
         `,
-        args: [userId, record.puzzleId, record.lastPlayedAt, record.completedAt],
+        args: [
+          userId,
+          record.puzzleId,
+          record.lastPlayedAt,
+          record.completedAt,
+          record.attempts,
+          record.successes,
+          record.failures,
+        ],
       });
     }
 
@@ -1122,6 +1184,9 @@ export async function mergeCompletedPuzzles(userId: string, puzzleIds: number[])
     puzzleId,
     lastPlayedAt: timestamp,
     completedAt: timestamp,
+    attempts: 1,
+    successes: 1,
+    failures: 0,
   }));
 
   try {

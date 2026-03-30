@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { Board as BoardType, Piece, PieceColor, PieceType } from '@shared/types';
 import { PuzzleListPage, PuzzlePlayer } from '../components/PuzzlePage';
 
-const { boardPropsMock, navigateMock, puzzleFixture, puzzleListFixtures, markPuzzleCompletedMock, recordPuzzleVisitedMock, progressState } = vi.hoisted(() => {
+const { boardPropsMock, navigateMock, puzzleFixture, puzzleListFixtures, markPuzzleCompletedMock, recordPuzzleVisitedMock, recordPuzzleFailedMock, progressState, puzzleSummaryState } = vi.hoisted(() => {
   const board: BoardType = Array(8).fill(null).map(() => Array(8).fill(null));
   board[0][0] = { type: 'K', color: 'white' };
   board[6][3] = { type: 'R', color: 'white' };
@@ -20,7 +20,13 @@ const { boardPropsMock, navigateMock, puzzleFixture, puzzleListFixtures, markPuz
       description: 'White gives check and Black must respond.',
       explanation: 'After the checking move, the side to move must switch to Black so the defense can be played.',
       source: 'test fixture',
+      origin: 'review-batch' as const,
+      sourceGameId: null,
+      sourcePly: null,
       theme: 'Checkmate' as const,
+      motif: 'Test motif',
+      tags: ['mate'],
+      difficultyScore: 900,
       difficulty: 'beginner' as const,
       toMove: 'white' as const,
       board,
@@ -37,7 +43,13 @@ const { boardPropsMock, navigateMock, puzzleFixture, puzzleListFixtures, markPuz
         description: 'White gives check and Black must respond.',
         explanation: 'After the checking move, the side to move must switch to Black so the defense can be played.',
         source: 'Starter pack: test fixture',
+        origin: 'starter-pack' as const,
+        sourceGameId: null,
+        sourcePly: null,
         theme: 'MateIn1' as const,
+        motif: 'Test motif',
+        tags: ['mate', 'starter-pack'],
+        difficultyScore: 820,
         difficulty: 'beginner' as const,
         toMove: 'white' as const,
         board,
@@ -51,7 +63,13 @@ const { boardPropsMock, navigateMock, puzzleFixture, puzzleListFixtures, markPuz
         description: 'A fresh beginner fork.',
         explanation: 'Fork the king and rook.',
         source: 'Starter pack: test fixture',
+        origin: 'starter-pack' as const,
+        sourceGameId: null,
+        sourcePly: null,
         theme: 'Fork' as const,
+        motif: 'Fork motif',
+        tags: ['fork', 'tactic'],
+        difficultyScore: 960,
         difficulty: 'beginner' as const,
         toMove: 'black' as const,
         board,
@@ -65,7 +83,13 @@ const { boardPropsMock, navigateMock, puzzleFixture, puzzleListFixtures, markPuz
         description: 'An intermediate pin.',
         explanation: 'Win material through a pin.',
         source: 'Imported candidate batch: test fixture',
+        origin: 'review-batch' as const,
+        sourceGameId: null,
+        sourcePly: null,
         theme: 'Pin' as const,
+        motif: 'Pin motif',
+        tags: ['pin', 'tactic'],
+        difficultyScore: 1180,
         difficulty: 'intermediate' as const,
         toMove: 'white' as const,
         board,
@@ -79,7 +103,13 @@ const { boardPropsMock, navigateMock, puzzleFixture, puzzleListFixtures, markPuz
         description: 'Another mate in one from the same theme.',
         explanation: 'Keep drilling the same mating pattern.',
         source: 'Starter pack: test fixture',
+        origin: 'starter-pack' as const,
+        sourceGameId: null,
+        sourcePly: null,
         theme: 'MateIn1' as const,
+        motif: 'Mate motif',
+        tags: ['mate'],
+        difficultyScore: 980,
         difficulty: 'intermediate' as const,
         toMove: 'white' as const,
         board,
@@ -90,10 +120,24 @@ const { boardPropsMock, navigateMock, puzzleFixture, puzzleListFixtures, markPuz
     ],
     markPuzzleCompletedMock: vi.fn(async () => {}),
     recordPuzzleVisitedMock: vi.fn(async () => {}),
+    recordPuzzleFailedMock: vi.fn(async () => {}),
     progressState: {
-      progressRecords: [] as Array<{ puzzleId: number; lastPlayedAt: number; completedAt: number | null }>,
+      progressRecords: [] as Array<{ puzzleId: number; lastPlayedAt: number; completedAt: number | null; attempts: number; successes: number; failures: number }>,
       completedPuzzleIds: [] as number[],
       loading: false,
+    },
+    puzzleSummaryState: {
+      completedCount: 0,
+      totalCount: 4,
+      percentComplete: 0,
+      attemptCount: 0,
+      successRate: 0,
+      recommendedDifficultyScore: 980,
+      nextPuzzle: null,
+      continuePuzzle: null,
+      favoriteTheme: null,
+      lastPlayed: null,
+      recentCompleted: [],
     },
   };
 });
@@ -272,8 +316,10 @@ vi.mock('../lib/puzzleProgress', () => ({
     completedPuzzleSet: new Set(progressState.completedPuzzleIds),
     loading: progressState.loading,
     recordPuzzleVisited: recordPuzzleVisitedMock,
+    recordPuzzleFailed: recordPuzzleFailedMock,
     markPuzzleCompleted: markPuzzleCompletedMock,
   }),
+  usePuzzleProgressSummary: () => puzzleSummaryState,
 }));
 
 vi.mock('../components/Header', () => ({
@@ -323,9 +369,11 @@ describe('PuzzlePage turn state', () => {
     navigateMock.mockReset();
     markPuzzleCompletedMock.mockReset();
     recordPuzzleVisitedMock.mockReset();
+    recordPuzzleFailedMock.mockReset();
     progressState.progressRecords = [];
     progressState.completedPuzzleIds = [];
     progressState.loading = false;
+    puzzleSummaryState.nextPuzzle = null;
   });
 
   afterEach(() => {
@@ -333,7 +381,14 @@ describe('PuzzlePage turn state', () => {
   });
 
   it('shows the opponent turn after a checking solver move before the auto-reply runs', async () => {
-    progressState.progressRecords = [{ puzzleId: 77, lastPlayedAt: 1711600000, completedAt: null }];
+    progressState.progressRecords = [{
+      puzzleId: 77,
+      lastPlayedAt: 1711600000,
+      completedAt: null,
+      attempts: 1,
+      successes: 0,
+      failures: 1,
+    }];
     renderPuzzlePlayer();
 
     expect(recordPuzzleVisitedMock).toHaveBeenCalledWith(77);
@@ -361,7 +416,9 @@ describe('Puzzle list page', () => {
     navigateMock.mockReset();
     markPuzzleCompletedMock.mockReset();
     progressState.completedPuzzleIds = [];
+    progressState.progressRecords = [];
     progressState.loading = false;
+    puzzleSummaryState.nextPuzzle = puzzleListFixtures[1] as any;
   });
 
   it('recommends the first unsolved puzzle in the current track', () => {
