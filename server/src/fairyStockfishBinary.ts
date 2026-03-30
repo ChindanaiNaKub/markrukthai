@@ -308,7 +308,7 @@ export function getEngineSearchTimeoutMs(
   lane: EngineLane,
 ): number {
   if (request.search.depth || request.search.nodes) {
-    return lane === 'bot' ? 1800 : 6000;
+    return lane === 'bot' ? 1800 : 9000;
   }
 
   const movetimeMs = request.search.movetimeMs ?? 400;
@@ -316,7 +316,7 @@ export function getEngineSearchTimeoutMs(
     return Math.max(900, movetimeMs + 450);
   }
 
-  return Math.max(1000, movetimeMs + 650);
+  return Math.max(1800, movetimeMs + 1200);
 }
 
 const analysisBinaryEngine = new FairyStockfishBinaryEngine('analysis');

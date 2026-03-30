@@ -33,7 +33,7 @@ describe('normalizeEngineFen', () => {
       variant: 'makruk',
       position: '8/8/8/8/8/8/8/8 w',
       search: { movetimeMs: 1200 },
-    }, 'analysis')).toBe(1850);
+    }, 'analysis')).toBe(2400);
   });
 
   it('keeps bot service request timeouts capped tightly by level', () => {
@@ -44,15 +44,15 @@ describe('normalizeEngineFen', () => {
 
   it('scales review movetime down for long games while preserving short-game quality', () => {
     expect(getReviewMovetime(10, 250)).toBe(250);
-    expect(getReviewMovetime(77, 250)).toBe(76);
+    expect(getReviewMovetime(77, 250)).toBe(153);
     expect(getReviewMovetime(200, 250)).toBe(60);
   });
 
   it('caps the full-game review budget for long games', () => {
-    expect(getReviewTotalBudgetMs(10)).toBe(6000);
-    expect(getReviewTotalBudgetMs(45)).toBe(7950);
-    expect(getReviewTotalBudgetMs(82)).toBe(12000);
-    expect(getReviewTotalBudgetMs(200)).toBe(12000);
+    expect(getReviewTotalBudgetMs(10)).toBe(18000);
+    expect(getReviewTotalBudgetMs(45)).toBe(18000);
+    expect(getReviewTotalBudgetMs(82)).toBe(20760);
+    expect(getReviewTotalBudgetMs(200)).toBe(40000);
   });
 
   it('falls back to the local bot when an engine move is missing or illegal', () => {
