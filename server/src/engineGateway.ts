@@ -12,7 +12,7 @@ import {
   type AnalyzedMove,
   type GameAnalysis,
 } from '../../shared/analysis';
-import { getBotMove, type BotDifficulty } from '../../shared/botEngine';
+import { getBotLevelConfig, getBotMoveForLevel } from '../../shared/botEngine';
 import {
   moveToUci,
   serializeAnalysisPosition,
@@ -23,12 +23,13 @@ import {
   type PositionAnalysisResult,
   uciToMove,
 } from '../../shared/engineAdapter';
-import { logWarn } from './logger';
+import { logInfo, logWarn } from './logger';
 import { analyzeBotWithBinaryEngine, analyzeWithBinaryEngine, hasBinaryEngineConfigured } from './fairyStockfishBinary';
 
 const SERVICE_URL = process.env.FAIRY_STOCKFISH_SERVICE_URL?.trim() || '';
 
-const BOT_LEVEL_MOVETIMES_MS = [40, 60, 80, 110, 150, 200, 250, 300, 350, 400] as const;
+const BOT_LEVEL_MOVETIMES_MS = [50, 60, 70, 80, 95, 110, 130, 150, 170, 190] as const;
+const BOT_LEVEL_REQUEST_TIMEOUT_MS = [900, 950, 1000, 1050, 1150, 1250, 1350, 1450, 1550, 1650] as const;
 const REVIEW_MOVETIME_MS = 250;
 const REVIEW_MIN_MOVETIME_MS = 80;
 const REVIEW_TOTAL_TARGET_MS = 8000;
@@ -51,16 +52,14 @@ function getBotMovetime(level: number): number {
   return BOT_LEVEL_MOVETIMES_MS[clampBotLevel(level) - 1];
 }
 
+export function getBotRequestTimeoutMs(level: number): number {
+  return BOT_LEVEL_REQUEST_TIMEOUT_MS[clampBotLevel(level) - 1];
+}
+
 export function getReviewMovetime(moveCount: number, requestedMovetimeMs: number = REVIEW_MOVETIME_MS): number {
   const safeRequested = Math.max(REVIEW_MIN_MOVETIME_MS, Math.round(requestedMovetimeMs));
   const adaptive = Math.floor(REVIEW_TOTAL_TARGET_MS / Math.max(1, moveCount + 1));
   return Math.max(REVIEW_MIN_MOVETIME_MS, Math.min(safeRequested, adaptive));
-}
-
-function getFallbackDifficulty(level: number): BotDifficulty {
-  if (level <= 3) return 'easy';
-  if (level <= 7) return 'medium';
-  return 'hard';
 }
 
 function getFallbackDepth(search: EngineServiceAnalyzeRequest['search']): number {
@@ -86,8 +85,13 @@ function buildLocalBotMoveResult(
   level: number,
 ): BotMoveResult {
   const normalizedLevel = clampBotLevel(level);
+  const config = getBotLevelConfig(normalizedLevel);
   const state = createStateFromSnapshot(snapshot);
-  const move = getBotMove(state, getFallbackDifficulty(normalizedLevel));
+  const move = getBotMoveForLevel(state, normalizedLevel, {
+    maxDepth: config.maxDepth,
+    maxNodes: config.maxNodes,
+    maxMs: config.maxMs,
+  });
 
   return {
     move,
@@ -96,7 +100,7 @@ function buildLocalBotMoveResult(
     principalVariation: move ? [moveToUci(move)] : [],
     stats: {
       source: 'local',
-      depth: getFallbackDepth({ movetimeMs: getBotMovetime(normalizedLevel) }),
+      depth: config.maxDepth,
     },
   };
 }
@@ -125,14 +129,21 @@ export function resolveBotMoveCandidate(
 async function callService(
   pathname: string,
   request: EngineServiceAnalyzeRequest,
+  options?: { timeoutMs?: number },
 ): Promise<EngineServiceAnalyzeResponse | null> {
   const url = getServiceUrl(pathname);
   if (!url) return null;
+
+  const controller = options?.timeoutMs ? new AbortController() : null;
+  const timer = controller
+    ? setTimeout(() => controller.abort(), Math.max(1, options?.timeoutMs ?? 0))
+    : null;
 
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: controller?.signal,
       body: JSON.stringify(request),
     });
 
@@ -143,11 +154,14 @@ async function callService(
 
     return await response.json() as EngineServiceAnalyzeResponse;
   } catch (error) {
-    logWarn('engine_service_unavailable', {
-      pathname,
-      message: error instanceof Error ? error.message : 'unknown error',
-    });
+    const message = error instanceof Error ? error.message : 'unknown error';
+    const event = controller?.signal.aborted ? 'engine_service_timeout' : 'engine_service_unavailable';
+    logWarn(event, { pathname, message, timeoutMs: options?.timeoutMs });
     return null;
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
   }
 }
 
@@ -310,6 +324,7 @@ export async function getBotMoveWithEngine(
   level: number,
 ): Promise<BotMoveResult> {
   const normalizedLevel = clampBotLevel(level);
+  const startedAt = Date.now();
   const serialized = serializeAnalysisPosition(snapshot);
   const request: EngineServiceAnalyzeRequest = {
     variant: 'makruk',
@@ -321,8 +336,10 @@ export async function getBotMoveWithEngine(
     multipv: normalizedLevel <= 4 ? 2 : 1,
   };
 
-  const remote = await callService('/bot-move', request);
-  const binary = remote ? null : await analyzeBotWithBinaryEngine(request);
+  const remote = SERVICE_URL
+    ? await callService('/bot-move', request, { timeoutMs: getBotRequestTimeoutMs(normalizedLevel) })
+    : null;
+  const binary = remote || SERVICE_URL ? null : await analyzeBotWithBinaryEngine(request);
   const result = remote ?? binary;
 
   if (result) {
@@ -353,7 +370,13 @@ export async function getBotMoveWithEngine(
     });
   }
 
-  return buildLocalBotMoveResult(snapshot, normalizedLevel);
+  const fallback = buildLocalBotMoveResult(snapshot, normalizedLevel);
+  logInfo('bot_move_fallback_local', {
+    level: normalizedLevel,
+    elapsedMs: Date.now() - startedAt,
+    engineSourceTried: SERVICE_URL ? 'service' : hasBinaryEngineConfigured() ? 'binary' : 'none',
+  });
+  return fallback;
 }
 
 function remoteEngineLabel(): string {
