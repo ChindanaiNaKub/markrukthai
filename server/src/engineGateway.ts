@@ -33,6 +33,7 @@ const BOT_LEVEL_REQUEST_TIMEOUT_MS = [900, 950, 1000, 1050, 1150, 1250, 1350, 14
 const REVIEW_MOVETIME_MS = 250;
 const REVIEW_MIN_MOVETIME_MS = 80;
 const REVIEW_TOTAL_TARGET_MS = 8000;
+const REVIEW_ANALYSIS_MIN_TIMEOUT_MS = 2500;
 
 function getServiceUrl(pathname: string): string | null {
   if (!SERVICE_URL) return null;
@@ -60,6 +61,15 @@ export function getReviewMovetime(moveCount: number, requestedMovetimeMs: number
   const safeRequested = Math.max(REVIEW_MIN_MOVETIME_MS, Math.round(requestedMovetimeMs));
   const adaptive = Math.floor(REVIEW_TOTAL_TARGET_MS / Math.max(1, moveCount + 1));
   return Math.max(REVIEW_MIN_MOVETIME_MS, Math.min(safeRequested, adaptive));
+}
+
+function getReviewAnalysisTimeoutMs(search: EngineServiceAnalyzeRequest['search']): number {
+  if (search.depth || search.nodes) {
+    return 8000;
+  }
+
+  const movetime = Math.max(REVIEW_MIN_MOVETIME_MS, search.movetimeMs ?? REVIEW_MOVETIME_MS);
+  return Math.max(REVIEW_ANALYSIS_MIN_TIMEOUT_MS, movetime + 2000);
 }
 
 function getFallbackDepth(search: EngineServiceAnalyzeRequest['search']): number {
@@ -267,7 +277,7 @@ export async function analyzePositionWithEngine(
     multipv,
   };
 
-  const remote = await callService('/analyze', request);
+  const remote = await callService('/analyze', request, { timeoutMs: getReviewAnalysisTimeoutMs(search) });
   const binary = remote ? null : await analyzeWithBinaryEngine(request);
   const result = remote ?? binary;
 
@@ -284,10 +294,9 @@ export async function analyzeGameWithEngine(
   onProgress?: (progress: { current: number; total: number; done: boolean }) => void,
 ): Promise<GameAnalysis> {
   const movetimeMs = getReviewMovetime(moves.length, options?.movetimeMs);
-  const fallbackDepth = options?.depth ?? getFallbackDepth({ movetimeMs });
 
   if (!hasExternalEngineSupport()) {
-    return analyzeGame(moves, fallbackDepth, onProgress);
+    return analyzeGame(moves, options?.depth ?? getFallbackDepth({ movetimeMs }), onProgress);
   }
 
   const evaluatedMoves: AnalyzedMove[] = [];
@@ -301,12 +310,8 @@ export async function analyzeGameWithEngine(
     turn: state.turn,
     counting: state.counting,
   }, { movetimeMs, nodes: 0 });
-
-  if (currentAnalysis.stats.source === 'local') {
-    return analyzeGame(moves, fallbackDepth, onProgress);
-  }
-
   evaluations.push(currentAnalysis.evaluation);
+  let usedLocalFallback = currentAnalysis.stats.source === 'local';
 
   for (let moveIndex = 0; moveIndex < moves.length; moveIndex += 1) {
     const move = moves[moveIndex];
@@ -322,10 +327,7 @@ export async function analyzeGameWithEngine(
       counting: nextState.counting,
     }, { movetimeMs, nodes: 0 });
     const after = currentAnalysis;
-
-    if (before.stats.source === 'local' || after.stats.source === 'local') {
-      return analyzeGame(moves, fallbackDepth, onProgress);
-    }
+    usedLocalFallback = usedLocalFallback || before.stats.source === 'local' || after.stats.source === 'local';
 
     const bestEval = getBestEvalForPosition(state, before.bestMove, after.evaluation);
 
@@ -382,7 +384,7 @@ export async function analyzeGameWithEngine(
       black: blackSummary,
     },
     engine: {
-      label: remoteEngineLabel(),
+      label: usedLocalFallback ? `${remoteEngineLabel()} + local fallback` : remoteEngineLabel(),
       source: SERVICE_URL ? 'service' : 'binary',
     },
   };
