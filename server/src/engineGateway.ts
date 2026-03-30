@@ -31,9 +31,13 @@ const SERVICE_URL = process.env.FAIRY_STOCKFISH_SERVICE_URL?.trim() || '';
 const BOT_LEVEL_MOVETIMES_MS = [50, 60, 70, 80, 95, 110, 130, 150, 170, 190] as const;
 const BOT_LEVEL_REQUEST_TIMEOUT_MS = [900, 950, 1000, 1050, 1150, 1250, 1350, 1450, 1550, 1650] as const;
 const REVIEW_MOVETIME_MS = 250;
-const REVIEW_MIN_MOVETIME_MS = 80;
-const REVIEW_TOTAL_TARGET_MS = 8000;
-const REVIEW_ANALYSIS_MIN_TIMEOUT_MS = 2500;
+const REVIEW_MIN_MOVETIME_MS = 60;
+const REVIEW_TOTAL_TARGET_MS = 6000;
+const REVIEW_TOTAL_BUDGET_MIN_MS = 6000;
+const REVIEW_TOTAL_BUDGET_MAX_MS = 12000;
+const REVIEW_ANALYSIS_MIN_TIMEOUT_MS = 900;
+const REVIEW_ANALYSIS_TIMEOUT_BUFFER_MS = 450;
+const REVIEW_LOCAL_FALLBACK_DEADLINE_BUFFER_MS = 1200;
 
 function getServiceUrl(pathname: string): string | null {
   if (!SERVICE_URL) return null;
@@ -63,13 +67,34 @@ export function getReviewMovetime(moveCount: number, requestedMovetimeMs: number
   return Math.max(REVIEW_MIN_MOVETIME_MS, Math.min(safeRequested, adaptive));
 }
 
+export function getReviewTotalBudgetMs(moveCount: number): number {
+  const adaptive = 3000 + Math.max(0, moveCount) * 110;
+  return Math.max(REVIEW_TOTAL_BUDGET_MIN_MS, Math.min(REVIEW_TOTAL_BUDGET_MAX_MS, adaptive));
+}
+
 function getReviewAnalysisTimeoutMs(search: EngineServiceAnalyzeRequest['search']): number {
   if (search.depth || search.nodes) {
-    return 8000;
+    return 6000;
   }
 
   const movetime = Math.max(REVIEW_MIN_MOVETIME_MS, search.movetimeMs ?? REVIEW_MOVETIME_MS);
-  return Math.max(REVIEW_ANALYSIS_MIN_TIMEOUT_MS, movetime + 2000);
+  return Math.max(REVIEW_ANALYSIS_MIN_TIMEOUT_MS, movetime + REVIEW_ANALYSIS_TIMEOUT_BUFFER_MS);
+}
+
+function createReviewSearch(
+  requestedMovetimeMs: number,
+  remainingPositions: number,
+  remainingBudgetMs: number,
+): EngineServiceAnalyzeRequest['search'] {
+  const perPositionBudget = Math.floor(remainingBudgetMs / Math.max(1, remainingPositions));
+  const adaptiveMovetime = Math.floor(perPositionBudget * 0.5);
+
+  return {
+    movetimeMs: Math.max(
+      REVIEW_MIN_MOVETIME_MS,
+      Math.min(Math.max(REVIEW_MIN_MOVETIME_MS, requestedMovetimeMs), adaptiveMovetime),
+    ),
+  };
 }
 
 function getFallbackDepth(search: EngineServiceAnalyzeRequest['search']): number {
@@ -303,13 +328,39 @@ export async function analyzeGameWithEngine(
   const evaluations: number[] = [];
   const whiteSummary = createEmptySummary();
   const blackSummary = createEmptySummary();
+  const reviewStartedAt = Date.now();
+  const reviewDeadlineMs = reviewStartedAt + getReviewTotalBudgetMs(moves.length);
 
   let state = createInitialGameState(0, 0);
-  let currentAnalysis = await analyzePositionWithEngine({
+  let loggedBudgetFallback = false;
+  const analyzeReviewPosition = async (
+    snapshot: AnalysisPositionSnapshot,
+    remainingPositions: number,
+  ): Promise<PositionAnalysisResult> => {
+    const remainingBudgetMs = reviewDeadlineMs - Date.now();
+    if (remainingBudgetMs <= REVIEW_LOCAL_FALLBACK_DEADLINE_BUFFER_MS) {
+      if (!loggedBudgetFallback) {
+        loggedBudgetFallback = true;
+        logInfo('review_analysis_budget_exhausted', {
+          moveCount: moves.length,
+          elapsedMs: Date.now() - reviewStartedAt,
+          totalBudgetMs: getReviewTotalBudgetMs(moves.length),
+        });
+      }
+      return buildLocalPositionAnalysis(snapshot, { movetimeMs: REVIEW_MIN_MOVETIME_MS });
+    }
+
+    return analyzePositionWithEngine(
+      snapshot,
+      createReviewSearch(movetimeMs, remainingPositions, remainingBudgetMs),
+    );
+  };
+
+  let currentAnalysis = await analyzeReviewPosition({
     board: state.board,
     turn: state.turn,
     counting: state.counting,
-  }, { movetimeMs, nodes: 0 });
+  }, moves.length + 1);
   evaluations.push(currentAnalysis.evaluation);
   let usedLocalFallback = currentAnalysis.stats.source === 'local';
 
@@ -321,11 +372,11 @@ export async function analyzeGameWithEngine(
     const nextState = makeMove(state, move.from, move.to);
     if (!nextState) break;
 
-    currentAnalysis = await analyzePositionWithEngine({
+    currentAnalysis = await analyzeReviewPosition({
       board: nextState.board,
       turn: nextState.turn,
       counting: nextState.counting,
-    }, { movetimeMs, nodes: 0 });
+    }, moves.length - moveIndex);
     const after = currentAnalysis;
     usedLocalFallback = usedLocalFallback || before.stats.source === 'local' || after.stats.source === 'local';
 
