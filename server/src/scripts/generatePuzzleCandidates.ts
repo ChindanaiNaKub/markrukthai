@@ -2,13 +2,17 @@ import fs from 'fs';
 import path from 'path';
 
 import { getRecentGames, initDatabase, type RecentGamesFilter } from '../database';
-import type { Move } from '../../../shared/types';
+import type { Board, Move, PieceColor } from '../../../shared/types';
 import {
   createDefaultGenerationSource,
   formatDraftAsPrettyJson,
   generatePuzzleCandidateDraftsFromMoveSequence,
   type PuzzleGenerationSource,
 } from '../../../shared/puzzleGeneration';
+import { parsePgnLikePuzzleSources } from '../../../shared/puzzleSourceImport';
+import { SEED_PUZZLE_SOURCES } from '../../../shared/puzzleSeedSources';
+
+const DEFAULT_SEED_LABEL = 'seed corpus';
 
 interface ScriptOptions {
   limit: number;
@@ -25,6 +29,9 @@ interface InputFileGame {
   id?: string;
   source?: string;
   moves: Move[];
+  initialBoard?: Board;
+  startingTurn?: PieceColor;
+  startingPlyNumber?: number;
   moveCount?: number;
   result?: string;
   resultReason?: string;
@@ -100,6 +107,10 @@ function parseOptions(argv: string[]): ScriptOptions {
 
 function parseInputFile(filePath: string): PuzzleGenerationSource[] {
   const absolutePath = path.resolve(filePath);
+  if (!absolutePath.toLowerCase().endsWith('.json')) {
+    return parsePgnLikePuzzleSources(fs.readFileSync(absolutePath, 'utf8'));
+  }
+
   const raw = fs.readFileSync(absolutePath, 'utf8');
   const parsed = JSON.parse(raw) as InputFileGame[];
 
@@ -112,12 +123,13 @@ function parseInputFile(filePath: string): PuzzleGenerationSource[] {
       game.id ?? `input-${index + 1}`,
       game.source ?? `Imported JSON game ${index + 1}`,
       game.moves,
-      undefined,
-      'white',
+      game.initialBoard,
+      game.startingTurn ?? 'white',
       {
         moveCount: game.moveCount ?? game.moves.length,
         result: game.result,
         resultReason: game.resultReason,
+        startingPlyNumber: game.startingPlyNumber ?? 1,
       },
     ),
   );
@@ -130,6 +142,9 @@ async function loadSources(options: ScriptOptions): Promise<PuzzleGenerationSour
 
   await initDatabase();
   const recentGames = await getRecentGames(options.limit, 0, options.filter);
+  if (recentGames.length === 0) {
+    return SEED_PUZZLE_SOURCES;
+  }
 
   return recentGames.map(game =>
     createDefaultGenerationSource(
@@ -142,6 +157,7 @@ async function loadSources(options: ScriptOptions): Promise<PuzzleGenerationSour
         moveCount: game.move_count,
         result: game.result,
         resultReason: game.result_reason,
+        startingPlyNumber: 1,
       },
     ),
   );
@@ -235,7 +251,8 @@ async function main() {
 
   if (sources.length === 0) {
     console.log('No completed games available to mine.');
-    console.log('Run with --input <file.json> to mine from exported move lists instead.');
+    console.log(`Using the bundled ${DEFAULT_SEED_LABEL} is recommended until you export real finished games.`);
+    console.log('Run with --input <file.json|file.pgn> to mine from exported move lists instead.');
     console.log('Expected JSON shape: [{ "id": "game-1", "source": "Rated game", "moves": [...] }]');
     return;
   }
@@ -245,7 +262,7 @@ async function main() {
     const generated = generatePuzzleCandidateDraftsFromMoveSequence(source, {
       startingId: nextId,
       minPlies: 3,
-      maxPlies: 3,
+      maxPlies: 5,
       maxCandidates: options.maxPerGame,
       minSourceMoves: options.minSourceMoves,
       rejectResultReasons: options.rejectResultReasons,
@@ -255,7 +272,7 @@ async function main() {
   }).sort(compareCandidates);
 
   if (allGenerated.length === 0) {
-    console.log(`Scanned ${sources.length} source game(s) but found no valid 3-ply candidates.`);
+    console.log(`Scanned ${sources.length} source game(s) but found no valid 3- or 5-ply candidates.`);
     console.log('Try a larger --limit, different --filter, or an --input file with stronger tactical games.');
     return;
   }
