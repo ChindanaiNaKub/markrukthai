@@ -58,7 +58,7 @@ describe('shared SEO routes', () => {
   it('uses cleaned public titles for puzzle metadata', () => {
     const seo = getPublicSeoRoute('/puzzle/5001', 'https://thaichess.dev');
 
-    expect(seo.title).toBe('Trapped Knight | ThaiChess Puzzle 5001');
+    expect(seo.title).toBe('Trap The Knight Before It Escapes | ThaiChess Puzzle 5001');
     expect(seo.description).toContain('Win material in 2.');
   });
 
