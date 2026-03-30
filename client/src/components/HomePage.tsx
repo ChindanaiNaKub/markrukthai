@@ -279,6 +279,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => navigate(routes.puzzles)}
+                aria-label={`${t('home.puzzles')} ${t('home.puzzles_desc')}`}
                 className="bg-primary/10 border border-primary/25 rounded-xl px-4 py-4 text-left transition-colors hover:bg-primary/15"
               >
                 <div className="flex items-start gap-3">

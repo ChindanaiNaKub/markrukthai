@@ -330,6 +330,7 @@ describe('HomePage', () => {
 
     expect(screen.getByText(/jump back in/i)).toBeInTheDocument();
     expect(screen.getAllByText(/puzzle streak/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /puzzles tactical training/i })).toBeInTheDocument();
     expect(screen.getByText(/2\/7 lessons solved/i)).toBeInTheDocument();
     expect(screen.getByText(/best lesson theme so far: hanging piece/i)).toBeInTheDocument();
     expect(screen.getByText(/last lesson played: trapped knight/i)).toBeInTheDocument();
